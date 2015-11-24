@@ -3,11 +3,15 @@
 import argparse
 import re
 import sys
+import time
+
+from collections import namedtuple
 
 from primer3 import bindings as primer3
 
 FASTA = 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
-ANNOTATION_FILE = 'mart_export.txt'
+COORDINATES = 'COORDINATES.txt'
+SYNONIMS = 'SYNONIMS.txt'
 
 
 class chromosomeFasta():
@@ -23,94 +27,50 @@ class chromosomeFasta():
     def __str__(self):
         return ' '.join(['chromosome:', self.name, 'Length:', str(len(self.sequence)), 'Header:', self.header])
 
+
 class AnnotationParser:
-    def __init__(self, annotationFile):
-        self.annotationFile_ = annotationFile
-        self.lines_ = [x.rstrip().split(',') for x in open(self.annotationFile_).readlines()]
-        self.header_ = self.lines_.pop(0)
-        self.nameHeadersPos_ = {'Gene stable ID' : None,
-                                'Gene name' : None,
-                                'Transcript stable ID' : None,
-                                'Protein stable ID' : None,}
-        self.coordHeadersPos_ = {'Chromosome/scaffold name' : None,
-                                'Strand' : None,
-                                'Transcript start (bp)' : None,
-                                'Transcript end (bp)' : None,
-                                '5\' UTR end' : None,
-                                '3\' UTR start' : None,}
-        self.readHeaderPositions_()
+    def __init__(self, coordinates_txt, synonims_txt):
+        self.coordinates_ = self.readCoordinates_(coordinates_txt)
+        self.synonims_ = self.readSynonims_(synonims_txt)
 
-    def readHeaderPositions_(self):
-        def mapHeaderColumns(headerDict, header):
-            for key in headerDict:
-                headerDict[key] = header.index(key)
-            if not all(x for x in headerDict):
-                raise Exception('ERROR: Not all required columns "%s" in annotation file.' % \
-                                ', '.join(headerDict.keys()))
+    def readCoordinates_(self, coordinates_txt):
+        data = [x.rstrip() for x in open(coordinates_txt).readlines()][1:]
+        return [x.split('\t') for x in data]
 
-        mapHeaderColumns(self.nameHeadersPos_, self.header_)
-        mapHeaderColumns(self.coordHeadersPos_, self.header_)
 
-    def getCoordsRow_(self, name):
-        for line in self.lines_:
-            if name in [line[x] for x in self.nameHeadersPos_.values()]:
-                return line
-        raise Exception('ERROR: Can\'t find name "%s" in annotation file.' % self.annotationFile_)
-
-    def getCoordsFromRow_(self, row):
-        def firstCoordinate(fields, coordsDict, row):
-            for i in fields:
-                if coordsDict[i] and row[coordsDict[i]]:
-                    return row[coordsDict[i]]
-
-        def codingStrand(fields, strand):
-            if strand == '1':
-                return fields[0]
-            elif strand == '-1':
-                return fields[1]
-            raise Exception('ERROR wrong strand')
-
-        chromosome = row[self.coordHeadersPos_['Chromosome/scaffold name']]
-        strand = row[self.coordHeadersPos_['Strand']]
-        start = firstCoordinate(['5\' UTR end', codingStrand(['Transcript start (bp)', 'Transcript end (bp)'], strand)], self.coordHeadersPos_, row)
-        end = firstCoordinate(['3\' UTR start', codingStrand(['Transcript end (bp)', 'Transcript start (bp)'], strand)], self.coordHeadersPos_, row)
-
-        if not all(x for x in (chromosome, start, end, strand)):
-            raise Exception('ERROR: wrong values on annotation file.')
-        if strand == '-1':
-            start, end = end, start
-        return chromosome, start, end, strand
+    def readSynonims_(self, synonims_txt):
+        data = [x.rstrip() for x in open(synonims_txt).readlines()][2:]
+        data = [x.split('\t') for x in data]
+        return [[y for y in x if y] for x in data]
 
     def getCoordsFromName(self, name):
-        row = self.getCoordsRow_(name)
-        return self.getCoordsFromRow_(row)
+        found = filter(lambda x: name in x[1:], self.synonims_)
+        assert len(found) == 1, 'No name found.'
+        found = found[0]
+        coordinates = filter(lambda x: x[0] == found[0], self.coordinates_)
+        assert len(coordinates) == 1, 'More than one coordinates found.'
 
+        return tuple(coordinates[0][1:])
 
 class PrimerDesign:
     '''
     Primer design for CRISPR.
     '''
-    def __init__(self, sequenceFile, annotationFile):
+    nggTuple = namedtuple('NGG', ['chromosome', 'pos', 'strand', 'seed'])
+    def __init__(self, sequenceFile, coordinates, synomins):
         self.argumentParser()
         self.sequenceFile_ = sequenceFile
         self.chromosomesData = self.readsequence(self.sequenceFile_)
         self._numAlternativeCheckings = 2
-        self.annotationParser_ = AnnotationParser(annotationFile)
+        self.annotationParser_ = AnnotationParser(coordinates, synomins)
+        self.NGGs = self.getNGGsFromGenome()
 
     def argumentParser(self):
-        self.argp_ = argparse.ArgumentParser(description='pollito description')
-        self.argp_.add_argument('--name',
-                            action='store',
-                            type=str,
-                            help='dfasdfasdf')
-        self.argp_.add_argument('-cr','--chromosome',
-                            action='store',
-                            type=str,
-                            help='dfasdfasdf')
-        self.argp_.add_argument('-co','--coords',
-                            action='store',
-                            type=str,
-                            help='coordinates')
+        self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
+        self.argp_.add_argument('--name', action='store', type=str, help='dfasdfasdf')
+        self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='dfasdfasdf')
+        self.argp_.add_argument('-co','--coords', action='store', type=str, help='coordinates')
+        self.argp_.add_argument('--mismatch', action='store', type=int, default=0, help='Allowed amount of mismatches.')
 
     def parseArgs(self):
         self.argsList_ = self.argp_.parse_args()
@@ -143,19 +103,37 @@ class PrimerDesign:
 
         return True
 
-    def run_(self, chromosome, start, end):
+    def run_(self, chromosome, start, end, nMismatch):
         '''
         Runs Primer design for CRISPR. giving a tuple
             :param coords: tuple(int, int, int)
             :return: tuple(1,2,3)
         '''
         crFasta = self.chromosomesData.get(chromosome, None)
-        outputs = []
-        for x in (self.gRNA_design, self.HR_DNA, self.CheckingPrimers):
+        outputs = [self.unique_gRNA_design(crFasta, start, end, nMismatch)]
+
+        for x in (self.HR_DNA, self.CheckingPrimers):
             outputs.append(x(crFasta, start, end))
         return outputs
 
-    def gRNA_design(self, crFasta, start, end):
+    def getNGGsFromGenome(self):
+        NGGs = []
+        for name, sequence in self.chromosomesData.iteritems():
+            for strand, data in {'D':sequence.sequence, 'RC':self.reverseComplement(sequence.sequence)}.iteritems():
+                for match in re.finditer('GG', data):
+                    pos = match.start()
+                    string = data[pos-11:pos+2]
+                    if string:
+                        NGGs.append(self.nggTuple(name, pos, strand, string))
+        return NGGs
+
+    def genomeCompare(self, g1, g2, nmismatch):
+        if nmismatch == 0:
+            return g1 == g2
+        oo = len(filter(lambda x: g1[x] == g2[x], range(len(g1))))
+        return nmismatch == oo
+
+    def gRNA_design(self, crFasta, start, end, nMismatch, unique=False):
         '''
 
             :param crFasta: string
@@ -163,32 +141,68 @@ class PrimerDesign:
             :param end: int
             :return: Tuple
         '''
-        def _gRNA_design(PAM_sequence, crFasta_sequence, start, end, sequences):
-            for ind in [m.start() for m in re.finditer(PAM_sequence, crFasta_sequence[start+1:end+2])]:
-                gRNA = crFasta_sequence[start+1+ind-20:start+1+ind]
+        findNGGs = []
+        for strand, data in {'D':crFasta.sequence[start:end+1], 'RC':self.reverseComplement(crFasta.sequence[start:end+1])}.iteritems():
+            for match in re.finditer('GG', data):
+                pos = match.start()
+                seed = data[pos-11:pos+2]
+                if seed:
+                    findNGGs.append(self.nggTuple(crFasta.name, pos, strand, seed))
 
-                #check uniqueness
-                patternStr = gRNA + PAM_sequence
-                appearances = 0
-                for cr in sequences+[self.reverseComplement(x) for x in sequences]:
-                    for ind in [m.start() for m in re.finditer(gRNA +PAM_sequence, cr)]:
-                        appearances += 1
+        assert len(findNGGs) != 0, 'No nGG found in your input'
 
-                #unique
-                if appearances == 1:
-                    gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
-                    gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
-                    return (gRNA, gRNAfw, gRNArv)
+        #compare findNGGs with genome
+        allnggs = []
+        for ngg in findNGGs:
+            samenggs = []
+            for genomeNGG in self.NGGs:
+                if self.genomeCompare(ngg.seed, genomeNGG.seed, nMismatch):
+                    samenggs.append((ngg, genomeNGG))
+            if len(samenggs) == 1:
+                allnggs.extend(samenggs)
+                if unique:
+                    break
 
-            return None, None, None
+        gRNAs = []
+        for elem in allnggs:
+            ind = elem[0].pos
+            gRNA = crFasta.sequence[start+1+ind-10:start+1+ind]
+            gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
+            gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
+            gRNAs.append((gRNA, gRNAfw, gRNArv, ind))
 
-        for pam in ['AGG', 'TGG', 'GGG', 'CGG']:
-            for seq in [crFasta.sequence, self.reverseComplement(crFasta.sequence)]:
-                gRNA, gRNAfw, gRNArv = _gRNA_design(pam, seq, start, end, [self.chromosomesData[y].sequence for y in ['I', 'II', 'III', 'MT']])
-                if gRNA:
-                    return gRNA, gRNAfw, gRNArv
+        return gRNAs
 
-        raise Exception('ERROR, sorry no unique gRNa sequence in your sequence')
+
+    def unique_gRNA_design(self, crFasta, start, end, nMismatch):
+        return self.gRNA_design(crFasta, start, end, nMismatch, unique=True)[0]
+
+#        def _gRNA_design(PAM_sequence, crFasta_sequence, start, end, sequences):
+#            for ind in [m.start() for m in re.finditer(PAM_sequence, crFasta_sequence[start+1:end+2])]:
+#                gRNA = crFasta_sequence[start+1+ind-10:start+1+ind]
+#
+#                #check uniqueness
+#                patternStr = gRNA + PAM_sequence
+#                appearances = 0
+#                for cr in sequences+[self.reverseComplement(x) for x in sequences]:
+#                    for ind in [m.start() for m in re.finditer(gRNA +PAM_sequence, cr)]:
+#                        appearances += 1
+#
+#                #unique
+#                if appearances == 1:
+#                    gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
+#                    gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
+#                    return (gRNA, gRNAfw, gRNArv)
+#
+#            return None, None, None
+#
+#        for pam in ['AGG', 'TGG', 'GGG', 'CGG']:
+#            for seq in [crFasta.sequence, self.reverseComplement(crFasta.sequence)]:
+#                gRNA, gRNAfw, gRNArv = _gRNA_design(pam, seq, start, end, [self.chromosomesData[y].sequence for y in ['I', 'II', 'III', 'MT']])
+#                if gRNA:
+#                    return gRNA, gRNAfw, gRNArv
+#
+#        raise Exception('ERROR, sorry no unique gRNa sequence in your sequence')
 
     def HR_DNA(self, crFasta, start, end):
         '''
@@ -288,7 +302,7 @@ class PrimerDesign:
             :return: tuple(1,2,3)
         '''
         self.checkCoords_(chromosome, start, end)
-        return self.run_(chromosome, int(start), int(end))
+        return self.run_(chromosome, int(start), int(end), self.argsList_.mismatch)
 
     def runCL(self, localArgs):
         '''
@@ -302,7 +316,7 @@ class PrimerDesign:
         self.CheckingPrimers_report(ansTuple[2])
 
     def gRNA_report(self, gRNA):
-        print 'gRNA: ', gRNA[0]
+        print 'gRNA: ', gRNA[0], 'pos:', gRNA[3]
         print 'gRNAfw: ', gRNA[1]
         print 'gRNArv: ', gRNA[2], '\n'
 
@@ -332,12 +346,6 @@ class PrimerDesign:
         elif all(x for x in (cr, start, end)):
             ansTuples = self.run(cr, start, end)
 
-    def printReport(self, ansTuple):
-        print 'report'
-        for ind, elem in enumerate(ansTuple):
-            for x in elem:
-                print ind, x
-
     def readsequence(self, sequenceFile):
         '''
         Returns a tuple with header and data for the given file
@@ -354,8 +362,13 @@ class PrimerDesign:
 
 
 if __name__ == "__main__":
-    pd = PrimerDesign(FASTA, ANNOTATION_FILE)
+
+    startime = time.time()
+
+    pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS)
     pd.runCL(sys.argv[1:])
+
+    print 'runtime:', time.time()-startime
 
 
 
