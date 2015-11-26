@@ -1,4 +1,5 @@
-#!/usr/local/bin/python2.7
+#!/usr/bin/python2.7
+
 import argparse
 import re
 import sys
@@ -294,22 +295,22 @@ class PrimerDesign:
     def reverseComplement(self, sequence):
         return ''.join([x for x in reversed(self.sequenceComplement_(sequence))])
 
-    def run(self, chromosome, start, end):
+    def run(self, chromosome, start, end, nMismatch):
         '''
         Runs Primer design for CRISPR.
             :param input: string
             :return: tuple(1,2,3)
         '''
         self.checkCoords_(chromosome, start, end)
-        return self.run_(chromosome, int(start), int(end), self.argsList_.mismatch)
+        return self.run_(chromosome, int(start), int(end), nMismatch)
 
-    def runCL(self, localArgs):
+    def runCL(self):
         '''
         Run from Command line
             :param localArgs: string
         '''
         chromosome, start, end, strand = self.parseArgs()
-        ansTuple = self.run(chromosome, start, end)
+        ansTuple = self.run(chromosome, start, end, self.argsList_.mismatch)
         self.gRNA_report(ansTuple[0])
         self.HR_DNA_report(ansTuple[1])
         self.CheckingPrimers_report(ansTuple[2])
@@ -331,19 +332,27 @@ class PrimerDesign:
         print 'Deleted DNA product size: ', pm['PRIMER_PAIR_0_PRODUCT_SIZE']
         print 'Negative result product size: ', pm['negative_result'], '\n'
 
-    def runWeb(self, name=None, cr=None, start=None, end=None, strand=None):
+    def runWeb(self, name=None, cr=None, start=None, end=None, strand=None,
+               mismatch=0):
         '''
-        Function ready to be called from other sources
+        Function ready to be called from other sources ! testing here.
             :param name:
             :param cr:
             :param start:
             :param end:
             :return:
+
         '''
-        if name:
-            pass
-        elif all(x for x in (cr, start, end)):
-            ansTuples = self.run(cr, start, end)
+        if name==None:
+            if cr==None: raise ValueError('chromosome value (cr) must be given.') 
+            if start==None: raise ValueError('coordinate start index (start)\
+                                             must be given.')
+            if end==None: raise ValueError('coordinate end index (end)\
+                                           must be given.')
+            return self.run(cr, start, end, mismatch)
+        else:
+            print 'Name can not be used at the moment.'
+        
 
     def readsequence(self, sequenceFile):
         '''
@@ -361,13 +370,5 @@ class PrimerDesign:
 
 
 if __name__ == "__main__":
-
-    startime = time.time()
-
     pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS)
     pd.runCL(sys.argv[1:])
-
-    print 'runtime:', time.time()-startime
-
-
-
