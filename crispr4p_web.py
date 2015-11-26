@@ -20,7 +20,7 @@ def load_bahler_template():
 def generate_form():
     print '<H3>Please, enter gene information.</H3>\n'
     print '<TABLE BORDER = 0>\n'
-    print '<FORM METHOD = post ACTION = \"cris4p_web.py\">\n'
+    print '<FORM METHOD = post ACTION = \"crispr4p_web.py\">\n'
     print 'You can either specify by gene name,<br> \n'
     print 'Gene name: <INPUT type = text name = \"name\"><br><br><br>\n'
     print 'or specify the coordinates:<br>\n'
@@ -28,14 +28,17 @@ def generate_form():
     print 'Coordinates: from <INPUT type="number" name="coor_lower" min="0" max="1000000">'
     print 'to <INPUT type = number name = "coor_upper" min="0" max="1000000"><br>'
     print 'e.g. chromosome = I; Coordinates from 112000 to 115000<br><br>'
-    print '<center><input type="submit" name="action" value="Enter"></center><br><br>'
+    print '<input type="submit" name="action" value="Enter"><br><br>'
     print "</FORM>\n\n"
    
 
-def check_webinput(cr, start, stop):
+def check_webinput(name, cr, start, stop):
     print 'You are cheking: <br>'
-    print 'chromosome = ', cr, '<br>'
-    print 'coordinates = from', start, 'to', stop, '<br>'
+    if name==None:
+        print 'chromosome = ', cr, '<br>'
+        print 'coordinates = from', start, 'to', stop, '<br>'
+    else:
+        print 'name = ', name, '<br>'
     
 
 def gRNA_report(gRNA):
@@ -56,11 +59,11 @@ def CheckingPrimers_report(primerDesigns):
     print 'Deleted DNA product size: ', pm['PRIMER_PAIR_0_PRODUCT_SIZE'], '<br>'
     print 'Negative result product size: ', pm['negative_result'], '<br>'
 
-def ReportPrimerDesign(cr, start, end):
-    check_webinput(cr, start, end)
+def ReportPrimerDesign(name=None, cr=None, start=None, end=None):
+    check_webinput(name, cr, start, end)
     pd = crp.PrimerDesign(crp.FASTA, crp.COORDINATES, crp.SYNONIMS)
     try:
-        ansTuple = pd.runWeb(cr=cr, start=start, end=end) 
+        ansTuple = pd.runWeb(name, cr, start, end) 
     except AssertionError as err:
         print "Error: ", err
 
@@ -75,13 +78,16 @@ def main():
     generate_form()
     if form.has_key("action"): 
         if form.has_key("name"):
-            print 'function not ready currently\n  '
+            ReportPrimerDesign(name=str(form.getvalue("name")))
         elif form.has_key("coor_upper") and form.has_key("coor_lower") and \
                 form.has_key("chromosome"):
             ReportPrimerDesign(cr=str(form.getvalue("chromosome")),
                     start=str(form.getvalue("coor_lower")),
                     end=str(form.getvalue("coor_upper")))
-        else: print 'Please either use name or coordinate\n'
+        else:
+            print 'Error: use either gene name or coordinates.'
+
+
 
         
 main()

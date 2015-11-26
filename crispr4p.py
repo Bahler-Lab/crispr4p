@@ -67,8 +67,8 @@ class PrimerDesign:
 
     def argumentParser(self):
         self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
-        self.argp_.add_argument('--name', action='store', type=str, help='dfasdfasdf')
-        self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='dfasdfasdf')
+        self.argp_.add_argument('--name', action='store', type=str, help='pom34')
+        self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='I')
         self.argp_.add_argument('-co','--coords', action='store', type=str, help='coordinates')
         self.argp_.add_argument('--mismatch', action='store', type=int, default=0, help='Allowed amount of mismatches.')
 
@@ -351,7 +351,8 @@ class PrimerDesign:
                                            must be given.')
             return self.run(cr, start, end, mismatch)
         else:
-            print 'Name can not be used at the moment.'
+            cord=self.annotationParser_.getCoordsFromName(name)
+            return self.run(cord[0], cord[1], cord[2], 0)
         
 
     def readsequence(self, sequenceFile):
@@ -371,4 +372,4 @@ class PrimerDesign:
 
 if __name__ == "__main__":
     pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS)
-    pd.runCL(sys.argv[1:])
+    pd.runCL()
