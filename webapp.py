@@ -29,6 +29,7 @@ def generate_form():
     print 'e.g. chromosome = I; Coordinates from 112000 to 115000<br><br>'
     print '<input type="submit" name="action" value="Enter"><br><br>'
     print "</FORM>\n\n"
+  
    
 
 def check_webinput(name, cr, start, stop):
@@ -40,23 +41,37 @@ def check_webinput(name, cr, start, stop):
         print 'name = ', name, '<br>'
     
 
+def write_html_table(table, name):
+    print '<table style="width: 100%; table-layout: fixed", boarder="0">'
+    print '<tr><th align="left">', name, '</th></tr>'
+    for row in table:
+        print '<tr><td valign="top" align="right" bgcolor="Azure"">', row, "</td>"
+        print '<td  style="width: 80%; word-wrap: break-word" bgcolor="SeaShell">', table[row], '</td></tr>'
+    print '</table><br>'
+
+  
+
 def gRNA_report(gRNA):
-    print 'gRNA: ', gRNA[0], 'pos:', gRNA[3], "<br>"
-    print 'gRNAfw: ', gRNA[1], '<br>'
-    print 'gRNArv: ', gRNA[2], '<br>'
+    gRNA_dict = {'gRNA:':   gRNA[0],
+            'Position: ':   gRNA[3],
+            'Afw: '     :   gRNA[1],
+            'Arv: '     :   gRNA[2]}
+    write_html_table(gRNA_dict, "gRNA")
 
 
 def HR_DNA_report(hr_dna):
-    print 'HRfw: ', hr_dna[0], '<br>'
-    print 'HRrv: ', hr_dna[1], '<br>'
-    print 'Deleted DNA: ', hr_dna[2], '<br>'
+    hr_dna_dict = {'HRfw: ': hr_dna[0],
+                    'HRrv: ': hr_dna[1],
+                    'Deleted DNA: ':hr_dna[2]}
+    write_html_table(hr_dna_dict, "HR_DNA")
 
 def CheckingPrimers_report(primerDesigns):
     pm = primerDesigns[0]
-    print 'Check primer left: <br>', pm['PRIMER_LEFT_0_SEQUENCE'], '<br>'
-    print 'Check primer right: ', pm['PRIMER_RIGHT_0_SEQUENCE'], '<br>'
-    print 'Deleted DNA product size: ', pm['PRIMER_PAIR_0_PRODUCT_SIZE'], '<br>'
-    print 'Negative result product size: ', pm['negative_result'], '<br>'
+    pm_dict = {'Check primer left: ': pm['PRIMER_LEFT_0_SEQUENCE'],
+            'Check primer right: ': pm['PRIMER_RIGHT_0_SEQUENCE'], 
+            'Deleted DNA product size: ': pm['PRIMER_PAIR_0_PRODUCT_SIZE'],
+            'Negative result product size: ': pm['negative_result']}
+    write_html_table(pm_dict, "Primers")
 
 def ReportPrimerDesign(name=None, cr=None, start=None, end=None):
     datapath = "data/"
@@ -71,7 +86,6 @@ def ReportPrimerDesign(name=None, cr=None, start=None, end=None):
     except AssertionError as err:
         print "Error: ", err
 
-    print '<H3>Report:</H3><br>'
     gRNA_report(ansTuple[0])
     HR_DNA_report(ansTuple[1])
     CheckingPrimers_report(ansTuple[2])
