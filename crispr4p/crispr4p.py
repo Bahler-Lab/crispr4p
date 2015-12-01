@@ -4,15 +4,14 @@ import argparse
 import re
 import sys
 import time
-import os
+
 from collections import namedtuple
+
 from primer3 import bindings as primer3
 
-
-datapath = os.path.dirname(__file__)+"/../data/"
-FASTA = datapath + 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
-COORDINATES = datapath + 'COORDINATES.txt'
-SYNONIMS = datapath + 'SYNONIMS.txt'
+FASTA = 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
+COORDINATES = 'COORDINATES.txt'
+SYNONIMS = 'SYNONIMS.txt'
 
 
 class chromosomeFasta():
@@ -68,10 +67,11 @@ class PrimerDesign:
 
     def argumentParser(self):
         self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
-        self.argp_.add_argument('--name', action='store', type=str, help='pom34')
-        self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='I')
-        self.argp_.add_argument('-co','--coords', action='store', type=str, help='coordinates')
+        self.argp_.add_argument('--name', action='store', type=str, help='Name')
+        self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='Chromosome')
+        self.argp_.add_argument('-co','--coords', action='store', type=str, help='Coordinates')
         self.argp_.add_argument('--mismatch', action='store', type=int, default=0, help='Allowed amount of mismatches.')
+        self.argp_.add_argument('--allGRNA', action='store_true', help='Gives all possible GRNAs.')
 
     def parseArgs(self):
         self.argsList_ = self.argp_.parse_args()
@@ -111,16 +111,19 @@ class PrimerDesign:
             :return: tuple(1,2,3)
         '''
         crFasta = self.chromosomesData.get(chromosome, None)
-        outputs = [self.unique_gRNA_design(crFasta, start, end, nMismatch)]
+        if self.argsList_.allGRNA:
+            outputs = self.gRNA_design(crFasta, start, end, nMismatch, unique=False)
+        else:
+            outputs = [self.unique_gRNA_design(crFasta, start, end, nMismatch)]
+            for x in (self.HR_DNA, self.CheckingPrimers):
+                outputs.append(x(crFasta, start, end))
 
-        for x in (self.HR_DNA, self.CheckingPrimers):
-            outputs.append(x(crFasta, start, end))
         return outputs
 
     def getNGGsFromGenome(self):
         NGGs = []
         for name, sequence in self.chromosomesData.iteritems():
-            for strand, data in {'D':sequence.sequence, 'RC':self.reverseComplement(sequence.sequence)}.iteritems():
+            for strand, data in {1:sequence.sequence, -1:self.reverseComplement(sequence.sequence)}.iteritems():
                 for match in re.finditer('GG', data):
                     pos = match.start()
                     string = data[pos-11:pos+2]
@@ -143,7 +146,7 @@ class PrimerDesign:
             :return: Tuple
         '''
         findNGGs = []
-        for strand, data in {'D':crFasta.sequence[start:end+1], 'RC':self.reverseComplement(crFasta.sequence[start:end+1])}.iteritems():
+        for strand, data in {1:crFasta.sequence[start:end+1], -1:self.reverseComplement(crFasta.sequence[start:end+1])}.iteritems():
             for match in re.finditer('GG', data):
                 pos = match.start()
                 seed = data[pos-11:pos+2]
@@ -167,43 +170,25 @@ class PrimerDesign:
         gRNAs = []
         for elem in allnggs:
             ind = elem[0].pos
-            gRNA = crFasta.sequence[start+1+ind-10:start+1+ind]
+
+            if elem[0].strand == 1:
+                startInd = start+1+ind
+                gRNA = crFasta.sequence[startInd-22:startInd-2]
+                pam = crFasta.sequence[startInd-2:startInd+1]
+            else:   #strand -1
+                startInd = end-1-ind
+                pam = self.reverseComplement(crFasta.sequence[startInd:startInd+3])
+                gRNA = self.reverseComplement(crFasta.sequence[startInd+3:startInd+23])
             gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
             gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
-            gRNAs.append((gRNA, gRNAfw, gRNArv, ind))
+            gRNAs.append((gRNA, gRNAfw, gRNArv, ind, elem[0].strand, pam))
 
         return gRNAs
 
 
     def unique_gRNA_design(self, crFasta, start, end, nMismatch):
+        #change return index to return the nth elemment
         return self.gRNA_design(crFasta, start, end, nMismatch, unique=True)[0]
-
-#        def _gRNA_design(PAM_sequence, crFasta_sequence, start, end, sequences):
-#            for ind in [m.start() for m in re.finditer(PAM_sequence, crFasta_sequence[start+1:end+2])]:
-#                gRNA = crFasta_sequence[start+1+ind-10:start+1+ind]
-#
-#                #check uniqueness
-#                patternStr = gRNA + PAM_sequence
-#                appearances = 0
-#                for cr in sequences+[self.reverseComplement(x) for x in sequences]:
-#                    for ind in [m.start() for m in re.finditer(gRNA +PAM_sequence, cr)]:
-#                        appearances += 1
-#
-#                #unique
-#                if appearances == 1:
-#                    gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
-#                    gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
-#                    return (gRNA, gRNAfw, gRNArv)
-#
-#            return None, None, None
-#
-#        for pam in ['AGG', 'TGG', 'GGG', 'CGG']:
-#            for seq in [crFasta.sequence, self.reverseComplement(crFasta.sequence)]:
-#                gRNA, gRNAfw, gRNArv = _gRNA_design(pam, seq, start, end, [self.chromosomesData[y].sequence for y in ['I', 'II', 'III', 'MT']])
-#                if gRNA:
-#                    return gRNA, gRNAfw, gRNArv
-#
-#        raise Exception('ERROR, sorry no unique gRNa sequence in your sequence')
 
     def HR_DNA(self, crFasta, start, end):
         '''
@@ -271,7 +256,8 @@ class PrimerDesign:
 
         return_values = ['PRIMER_LEFT_%s_SEQUENCE', 'PRIMER_LEFT_%s_SEQUENCE', 'PRIMER_RIGHT_%s_SEQUENCE',
                          'PRIMER_LEFT_%s_TM','PRIMER_RIGHT_%s_TM', 'PRIMER_LEFT_%s_GC_PERCENT',
-                         'PRIMER_RIGHT_%s_GC_PERCENT', 'PRIMER_PAIR_%s_PRODUCT_SIZE']
+                         'PRIMER_RIGHT_%s_GC_PERCENT', 'PRIMER_PAIR_%s_PRODUCT_SIZE', 'PRIMER_LEFT_%s_TM',
+                         'PRIMER_RIGHT_%s_TM']
 
         primerDesingCheck = []
         for x in range(self._numAlternativeCheckings):
@@ -281,7 +267,6 @@ class PrimerDesign:
                 auxDict[designPrimer_key] = ans[designPrimer_key]
             auxDict['negative_result'] = ans['PRIMER_PAIR_%s_PRODUCT_SIZE' % x] + (end-start)
             primerDesingCheck.append(auxDict)
-
         return primerDesingCheck
 
     def sequenceComplement_(self, sequence):
@@ -296,28 +281,36 @@ class PrimerDesign:
     def reverseComplement(self, sequence):
         return ''.join([x for x in reversed(self.sequenceComplement_(sequence))])
 
-    def run(self, chromosome, start, end, nMismatch):
+    def run(self, chromosome, start, end):
         '''
         Runs Primer design for CRISPR.
             :param input: string
             :return: tuple(1,2,3)
         '''
         self.checkCoords_(chromosome, start, end)
-        return self.run_(chromosome, int(start), int(end), nMismatch)
+        return self.run_(chromosome, int(start), int(end), self.argsList_.mismatch)
 
-    def runCL(self):
+    def runCL(self, localArgs):
         '''
         Run from Command line
             :param localArgs: string
         '''
         chromosome, start, end, strand = self.parseArgs()
-        ansTuple = self.run(chromosome, start, end, self.argsList_.mismatch)
-        self.gRNA_report(ansTuple[0])
-        self.HR_DNA_report(ansTuple[1])
-        self.CheckingPrimers_report(ansTuple[2])
+        ansTuple = self.run(chromosome, start, end)
 
-    def gRNA_report(self, gRNA):
-        print 'gRNA: ', gRNA[0], 'pos:', gRNA[3]
+        if self.argsList_.allGRNA:
+            self.allGRNA_report(ansTuple)
+        else:
+            self.gRNA_report(ansTuple[0], start)
+            self.HR_DNA_report(ansTuple[1])
+            self.CheckingPrimers_report(ansTuple[2])
+
+    def allGRNA_report(self, data):
+        for d in data:
+            print 'GRNA:', d[0], 'PAM:', d[5], 'Strand:', d[4], 'Start:', d[3]
+
+    def gRNA_report(self, gRNA, start):
+        print 'gRNA: ', gRNA[0], 'PAM:', gRNA[3]+int(start), gRNA[5], gRNA[4]
         print 'gRNAfw: ', gRNA[1]
         print 'gRNArv: ', gRNA[2], '\n'
 
@@ -328,33 +321,24 @@ class PrimerDesign:
 
     def CheckingPrimers_report(self, primerDesigns):
         pm = primerDesigns[0]
-        print 'Check primer left: ', pm['PRIMER_LEFT_0_SEQUENCE']
-        print 'Check primer right: ', pm['PRIMER_RIGHT_0_SEQUENCE']
+        print 'Check primer left: ', pm['PRIMER_LEFT_0_SEQUENCE'], 'TM:', pm['PRIMER_LEFT_0_TM']
+        print 'Check primer right: ', pm['PRIMER_RIGHT_0_SEQUENCE'], 'TM:', pm['PRIMER_RIGHT_0_TM']
         print 'Deleted DNA product size: ', pm['PRIMER_PAIR_0_PRODUCT_SIZE']
         print 'Negative result product size: ', pm['negative_result'], '\n'
 
-    def runWeb(self, name=None, cr=None, start=None, end=None, strand=None,
-               mismatch=0):
+    def runWeb(self, name=None, cr=None, start=None, end=None, strand=None):
         '''
-        Function ready to be called from other sources ! testing here.
+        Function ready to be called from other sources
             :param name:
             :param cr:
             :param start:
             :param end:
             :return:
-
         '''
-        if name==None:
-            if cr==None: raise ValueError('chromosome value (cr) must be given.') 
-            if start==None: raise ValueError('coordinate start index (start)\
-                                             must be given.')
-            if end==None: raise ValueError('coordinate end index (end)\
-                                           must be given.')
-            return self.run(cr, start, end, mismatch)
-        else:
-            cord=self.annotationParser_.getCoordsFromName(name)
-            return self.run(cord[0], cord[1], cord[2], 0)
-        
+        if name:
+            pass
+        elif all(x for x in (cr, start, end)):
+            ansTuples = self.run(cr, start, end)
 
     def readsequence(self, sequenceFile):
         '''
@@ -372,5 +356,13 @@ class PrimerDesign:
 
 
 if __name__ == "__main__":
+
+    startime = time.time()
+
     pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS)
-    pd.runCL()
+    pd.runCL(sys.argv[1:])
+
+    print 'runtime:', time.time()-startime
+
+
+
