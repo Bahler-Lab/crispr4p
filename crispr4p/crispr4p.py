@@ -341,10 +341,15 @@ class PrimerDesign:
                                              must be given.')
             if end==None: raise ValueError('coordinate end index (end)\
                                            must be given.')
-            return self.run(cr, start, end, 0, allGRNA)
+            ansTuple = self.run(cr, start, end, 0, allGRNA)
+            if not allGRNA: ansTuple.append([cr, start, end])
+
         else:
             cord=self.annotationParser_.getCoordsFromName(name)
-            return self.run(cord[0], cord[1], cord[2], 0, allGRNA)
+            ansTuple = self.run(cord[0], cord[1], cord[2], 0, allGRNA)
+            if not allGRNA:  ansTuple.append(cord[0:2])
+        return ansTuple
+
 
     def readsequence(self, sequenceFile):
         '''

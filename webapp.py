@@ -35,7 +35,7 @@ class viewForm(object):
                 Coordinates: from <INPUT type="number" name="coor_lower" min="0" max="1000000">\
                 to <INPUT type = number name = "coor_upper" min="0" max="1000000"><br>\
                 e.g. chromosome = I; Coordinates from 112000 to 115000<br><br>\
-                <INPUT type="checkbox" name=allgene> show all genes &nbsp&nbsp&nbsp\
+                <INPUT type="checkbox" name=allgene> show all gRNAs &nbsp&nbsp&nbsp\
                 <input type="submit" name="action" value="Submit"><br><br>\
                 </FORM>'
         return form_text
@@ -79,7 +79,7 @@ class PrimerDesignModel(object):
         if self.allGRNA:
             result_html += self.all_gRNA_report(self.ansTuple)
         else:
-            result_html += self.gRNA_report(self.ansTuple[0])
+            result_html += self.gRNA_report(self.ansTuple[0], self.ansTuple[-1][1])
             result_html += self.HR_DNA_report(self.ansTuple[1])
             result_html += self.CheckingPrimers_report(self.ansTuple[2])
         return result_html
@@ -88,8 +88,8 @@ class PrimerDesignModel(object):
     def write_html_table(self, table, name):
         html_table = '<table style="width: 100%; table-layout: fixed", boarder="0"><tr><th align="left">' + name + '</th></tr>'
         for row in table:
-            html_table += '<tr><td valign="top" align="right" bgcolor="Azure"">' + row + "</td>"
-            html_table +=  '<td  style="width: 80%; word-wrap: break-word" bgcolor="SeaShell">' + str(table[row]) + '</td></tr>'
+            html_table += '<tr><td valign="top" align="right" bgcolor="Azure"">' + row[0] + "</td>"
+            html_table +=  '<td  style="width: 80%; word-wrap: break-word" bgcolor="SeaShell">' + str(row[1]) + '</td></tr>'
         html_table += '</table><br>'
         return html_table
 
@@ -118,31 +118,32 @@ class PrimerDesignModel(object):
             report_html += '<br>'
             count += 1
         return report_html
-            
-            
-    def gRNA_report(self, gRNA):
-        gRNA_dict = {'gRNA:':   gRNA[0],
-                'Position: ':   gRNA[3],
-                'Afw: '     :   gRNA[1],
-                'Arv: '     :   gRNA[2]}
+    
+    def gRNA_report(self, gRNA, start):
+        gRNA_dict = [('gRNA:',   gRNA[0]),
+                ('PAM: ',  "Position=" + str(int(gRNA[3])+int(start)) + \
+                        " sequence=" + str(gRNA[5]) + " strand=(" + str(gRNA[4]) + ")"),
+                ('gRNA-fw: ', gRNA[1]),
+                ('gRNA-rv: ', gRNA[2])]
         return self.write_html_table(gRNA_dict, "gRNA")
 
     def HR_DNA_report(self, hr_dna):
-        hr_dna_dict = {'HRfw: ': hr_dna[0],
-                'HRrv: ': hr_dna[1],
-                'Deleted DNA: ':hr_dna[2]}
-        return self.write_html_table(hr_dna_dict, "HR_DNA")
+        hr_dna_dict = [('HRfw: ', hr_dna[0]),
+                ('HRrv: ', hr_dna[1]),
+                ('Deleted DNA: ', hr_dna[2])]
+        return self.write_html_table(hr_dna_dict, "Homologous Recombination Primers")
 
     def CheckingPrimers_report(self, primerDesigns):
         pm = primerDesigns[0]
-        pm_dict = {'Check primer left: ': pm['PRIMER_LEFT_0_SEQUENCE'], 
-                'LEFT_TM:': pm['PRIMER_LEFT_0_TM'],
-                'Check primer right: ': pm['PRIMER_RIGHT_0_SEQUENCE'], 
-                'RIGHT_TM:' : pm['PRIMER_RIGHT_0_TM'],
-                'Deleted DNA product size: ': pm['PRIMER_PAIR_0_PRODUCT_SIZE'],
-                'Negative result product size: ': pm['negative_result']}
+        pm_dict = [
+                ('Check primer left: ', pm['PRIMER_LEFT_0_SEQUENCE']), 
+                ('LEFT_TM:', int(round(pm['PRIMER_LEFT_0_TM']))),
+                ('Check primer right: ', pm['PRIMER_RIGHT_0_SEQUENCE']), 
+                ('RIGHT_TM:', int(round(pm['PRIMER_RIGHT_0_TM']))),
+                ('Deleted DNA product size: ', str(pm['PRIMER_PAIR_0_PRODUCT_SIZE']) + "(bp)"),
+                ('Negative result product size: ', str(pm['negative_result']) + "(bp)")]
 
-        return self.write_html_table(pm_dict, "Primers")
+        return self.write_html_table(pm_dict, "Checking Primers")
 
 class controller(object):
     def __init__(self):
