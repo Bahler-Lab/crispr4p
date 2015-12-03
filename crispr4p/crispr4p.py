@@ -5,7 +5,7 @@ import re, os, sys, time
 from collections import namedtuple
 from primer3 import bindings as primer3
 
-datapath = os.path.dirname(__file__)+"./../data/"
+datapath = os.path.dirname(__file__)+"/../data/"
 FASTA = datapath + 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
 COORDINATES = datapath + 'COORDINATES.txt'
 SYNONIMS = datapath + 'SYNONIMS.txt'
@@ -101,14 +101,14 @@ class PrimerDesign:
 
         return True
 
-    def run_(self, chromosome, start, end, nMismatch):
+    def run_(self, chromosome, start, end, nMismatch, allGRNA):
         '''
         Runs Primer design for CRISPR. giving a tuple
             :param coords: tuple(int, int, int)
             :return: tuple(1,2,3)
         '''
         crFasta = self.chromosomesData.get(chromosome, None)
-        if self.argsList_.allGRNA:
+        if allGRNA:
             outputs = self.gRNA_design(crFasta, start, end, nMismatch, unique=False)
         else:
             outputs = [self.unique_gRNA_design(crFasta, start, end, nMismatch)]
@@ -278,14 +278,14 @@ class PrimerDesign:
     def reverseComplement(self, sequence):
         return ''.join([x for x in reversed(self.sequenceComplement_(sequence))])
 
-    def run(self, chromosome, start, end, nMismatch):
+    def run(self, chromosome, start, end, nMismatch, allGRNA):
         '''
         Runs Primer design for CRISPR.
             :param input: string
             :return: tuple(1,2,3)
         '''
         self.checkCoords_(chromosome, start, end)
-        return self.run_(chromosome, int(start), int(end), nMismatch)
+        return self.run_(chromosome, int(start), int(end), nMismatch, allGRNA)
 
     def runCL(self):
         '''
@@ -293,7 +293,8 @@ class PrimerDesign:
             :param localArgs: string
         '''
         chromosome, start, end, strand = self.parseArgs()
-        ansTuple = self.run(chromosome, start, end, self.argsList_.mismatch)
+        ansTuple = self.run(chromosome, start, end, self.argsList_.mismatch,
+                self.argsList_.allGRNA)
 
         if self.argsList_.allGRNA:
             self.allGRNA_report(ansTuple)
@@ -323,13 +324,15 @@ class PrimerDesign:
         print 'Deleted DNA product size: ', pm['PRIMER_PAIR_0_PRODUCT_SIZE']
         print 'Negative result product size: ', pm['negative_result'], '\n'
 
-    def runWeb(self, name=None, cr=None, start=None, end=None, strand=None):
+    def runWeb(self, name=None, cr=None, 
+            start=None, end=None, strand=None, allGRNA=False):
         '''
         Function ready to be called from other sources
             :param name:
             :param cr:
             :param start:
             :param end:
+            :param allGRNA:
             :return:
         '''
         if name==None:
@@ -338,10 +341,10 @@ class PrimerDesign:
                                              must be given.')
             if end==None: raise ValueError('coordinate end index (end)\
                                            must be given.')
-            return self.run(cr, start, end, mismatch)
+            return self.run(cr, start, end, 0, allGRNA)
         else:
             cord=self.annotationParser_.getCoordsFromName(name)
-            return self.run(cord[0], cord[1], cord[2], 0)
+            return self.run(cord[0], cord[1], cord[2], 0, allGRNA)
 
     def readsequence(self, sequenceFile):
         '''
