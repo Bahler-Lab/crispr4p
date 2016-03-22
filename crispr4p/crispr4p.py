@@ -1,15 +1,69 @@
 #!/usr/bin/python2.7
 
 import argparse
-import re, os, sys, time
+import collections
+import re, os, sys, time, cPickle
+import multiprocessing
 from collections import namedtuple
+
 from primer3 import bindings as primer3
 
-datapath = os.path.dirname(__file__)+"/../data/"
+datapath = os.path.join(os.path.dirname(__file__), "../data/")
+PRECOMPUTED = datapath + 'precomputed'
 FASTA = datapath + 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
 COORDINATES = datapath + 'COORDINATES.txt'
 SYNONIMS = datapath + 'SYNONIMS.txt'
 
+############### CONFIGURATION VALUES ###################
+SEED_LENGTH = 20
+UNIQUE_INDEX_LENGTH = (-12,-3)   # range of values selected for uniqueness
+
+class TableSorting:
+    def __init__(self, posList, reversed):
+        self.reversed = reversed
+        self.posList = posList
+
+    def bubbleSort(self, alist):
+        for passnum in range(len(alist)-1,0,-1):
+            for i in range(passnum):
+                if self._biggerThanTuple(alist[i], alist[i+1]):
+                    temp = alist[i]
+                    alist[i] = alist[i+1]
+                    alist[i+1] = temp
+
+    def _biggerThanTuple(self, tup1, tup2):
+        '''
+        Compares two tuples with the attributes set up in the init.
+        :param tup1:
+        :param tup2:
+        :return:
+        '''
+        iterRange = range(self.posList[0], self.posList[1]+1)
+        iterRange = reversed(iterRange) if self.reversed else iterRange
+
+        for i in iterRange:
+            if tup1[i] > tup2[i]:
+                return True
+            elif tup1[i] < tup2[i]:
+                return False
+
+
+    def sortByPosCriteria(self, table):
+        self.bubbleSort(table)
+        return table
+
+class CPU_RAM:
+    #>>> multiprocessing.cpu_count()
+        #import os
+        #mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')  # e.g. 4015976448
+        #mem_gib = mem_bytes/(1024.**3)
+
+        #meminfo = dict((i.split()[0].rstrip(':'),int(i.split()[1])) for i in open('/proc/meminfo').readlines())
+        #mem_total_kib = meminfo['MemTotal']  # e.g. 3921852
+    def getNumProccess(self):
+        #return the number of process to run
+        #return multiprocessing.cpu_count()*3/4
+        return multiprocessing.cpu_count()
 
 class chromosomeFasta():
     '''
@@ -24,7 +78,6 @@ class chromosomeFasta():
     def __str__(self):
         return ' '.join(['chromosome:', self.name, 'Length:', str(len(self.sequence)), 'Header:', self.header])
 
-
 class AnnotationParser:
     def __init__(self, coordinates_txt, synonims_txt):
         self.coordinates_ = self.readCoordinates_(coordinates_txt)
@@ -34,14 +87,13 @@ class AnnotationParser:
         data = [x.rstrip() for x in open(coordinates_txt).readlines()][1:]
         return [x.split('\t') for x in data]
 
-
     def readSynonims_(self, synonims_txt):
         data = [x.rstrip() for x in open(synonims_txt).readlines()][2:]
         data = [x.split('\t') for x in data]
         return [[y for y in x if y] for x in data]
 
     def getCoordsFromName(self, name):
-        found = filter(lambda x: name in x[1:], self.synonims_)
+        found = [x for x in self.synonims_ if name in x]
         assert len(found) == 1, 'No name found.'
         found = found[0]
         coordinates = filter(lambda x: x[0] == found[0], self.coordinates_)
@@ -49,18 +101,32 @@ class AnnotationParser:
 
         return tuple(coordinates[0][1:])
 
+
+class NGG:
+    def __init__(self, chro, pos, strand, seed, pam):
+        self.chromosome = chro
+        self.pos = pos
+        self.strand = strand
+        self.seed = seed
+        self.pam = pam
+        self.primer = None
+
+
 class PrimerDesign:
     '''
     Primer design for CRISPR.
     '''
-    nggTuple = namedtuple('NGG', ['chromosome', 'pos', 'strand', 'seed'])
-    def __init__(self, sequenceFile, coordinates, synomins):
+
+    def __init__(self, sequenceFile, coordinates, synomins, verbose=False):
         self.argumentParser()
         self.sequenceFile_ = sequenceFile
         self.chromosomesData = self.readsequence(self.sequenceFile_)
         self._numAlternativeCheckings = 2
         self.annotationParser_ = AnnotationParser(coordinates, synomins)
-        self.NGGs = self.getNGGsFromGenome()
+        self.userNGGs = []
+        self.NGGs = []
+        self.tableNGGs = {}
+        self.verbose = verbose
 
     def argumentParser(self):
         self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
@@ -68,10 +134,10 @@ class PrimerDesign:
         self.argp_.add_argument('-cr','--chromosome', action='store', type=str, help='Chromosome')
         self.argp_.add_argument('-co','--coords', action='store', type=str, help='Coordinates')
         self.argp_.add_argument('--mismatch', action='store', type=int, default=0, help='Allowed amount of mismatches.')
-        self.argp_.add_argument('--allGRNA', action='store_true', help='Gives all possible GRNAs.')
 
-    def parseArgs(self):
-        self.argsList_ = self.argp_.parse_args()
+    def parseArgs(self, localArgs):
+        self.argsList_ = self.argp_.parse_args(localArgs)
+
         if self.argsList_.name:
             return self.annotationParser_.getCoordsFromName(self.argsList_.name)
         elif self.argsList_.coords and self.argsList_.chromosome:
@@ -101,91 +167,179 @@ class PrimerDesign:
 
         return True
 
-    def run_(self, chromosome, start, end, nMismatch, allGRNA):
+    def _getUserNGGs(self, crFasta, start, end):
+        ##user input NGGs
+        findNGGs = {}
+        for strand, data in {1:crFasta.sequence[start:end+1], -1:self.reverseComplement(crFasta.sequence[start:end+1])}.iteritems():
+            for match in re.finditer('GG', data):
+                pos = match.start()
+                pam = data[pos-1:pos+2]
+                seed = data[pos-SEED_LENGTH-1:pos-1]
+                if seed:
+                    auxfindNGGs = findNGGs.get(seed, [])
+                    auxfindNGGs.append(NGG(crFasta.name, pos, strand, seed, pam))
+                    findNGGs[seed] = auxfindNGGs
+
+        #filter unique values
+        self.userNGGs = [value[0] for value in findNGGs.values() if len(value) == 1]
+
+        assert len(findNGGs) != 0, 'No nGG found in your input'
+
+    def getPrimerGRNA(self, crFasta, start, end, ngg):
+        #get primers
+        ind = ngg.pos
+        if ngg.strand == 1:
+            startInd = start+1+ind
+            gRNA = crFasta.sequence[startInd-22:startInd-2]
+            pam = crFasta.sequence[startInd-2:startInd+1]
+        else:   #strand -1
+            startInd = end-1-ind
+            pam = self.reverseComplement(crFasta.sequence[startInd:startInd+3])
+            gRNA = self.reverseComplement(crFasta.sequence[startInd+3:startInd+23])
+        gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
+        gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
+
+        return gRNA, gRNAfw, gRNArv, ind, ngg.strand, pam
+
+    def _genPrecomputedName(self, name, nMismatch, cr, start, end):
+        if not os.path.isdir(PRECOMPUTED):
+            os.makedirs(PRECOMPUTED)
+        if name:
+            #use sistematic name (SPAC)
+            sistematic_name = [x for x in self.annotationParser_.synonims_ if name in x][0][0]
+            basename = '%s_n%s.pickle' % (sistematic_name, nMismatch)
+        else:
+            basename = '%s_%s_%s_n%s.pickle' % (cr, start, end, nMismatch)
+        return os.path.join(PRECOMPUTED, basename)
+
+    def _isPrecomputed(self, precomputedName):
+        if os.path.isfile(precomputedName):
+            return True
+
+    def run_(self, chromosome, start, end, nMismatch, name):
         '''
         Runs Primer design for CRISPR. giving a tuple
             :param coords: tuple(int, int, int)
             :return: tuple(1,2,3)
         '''
         crFasta = self.chromosomesData.get(chromosome, None)
-        if allGRNA:
-            outputs = self.gRNA_design(crFasta, start, end, nMismatch, unique=False)
-        else:
-            outputs = [self.unique_gRNA_design(crFasta, start, end, nMismatch)]
-            for x in (self.HR_DNA, self.CheckingPrimers):
-                outputs.append(x(crFasta, start, end))
 
-        return outputs
+        precomputedName = self._genPrecomputedName(name, nMismatch, chromosome, start, end)
+        if not self._isPrecomputed(precomputedName):
+            #find user input nggs
+            self._getUserNGGs(crFasta, start, end)
+
+            #get all NGGs from genome
+            self.getNGGsFromGenome()
+
+            #get primers in parallel
+            self.gRNA_Table(nMismatch)
+
+            #store this gen table on this mismatch
+            with open(precomputedName, 'w') as fh:
+                cPickle.dump(self.tableNGGs, fh, protocol=-1)
+        else:
+            with open(precomputedName) as fh:
+                self.tableNGGs = cPickle.load(fh)
+
+        #Check primer GRNA
+        for key in self.tableNGGs:
+            primerGRNA = self.getPrimerGRNA(crFasta, start, end, key)
+            key.primer = primerGRNA
+
+        #create table
+        tablepos = []
+        for key, value in self.tableNGGs.iteritems():
+            newrow = [key.seed, key.primer] + [len(value[ind])for ind in range(8,21,2)]
+            tablepos.append(newrow)
+
+        #sort table
+        tablepos = TableSorting((2, len(tablepos[0])-1), reversed=True).sortByPosCriteria(tablepos)
+
+        hr_DNA, primerCheck = [x(crFasta, start, end) for x in (self.HR_DNA, self.CheckingPrimers)]
+
+        return tablepos, hr_DNA, primerCheck, self.tableNGGs
 
     def getNGGsFromGenome(self):
-        NGGs = []
+        '''
+        Run at initialitation.
+        :return:
+        '''
+
         for name, sequence in self.chromosomesData.iteritems():
             for strand, data in {1:sequence.sequence, -1:self.reverseComplement(sequence.sequence)}.iteritems():
-                for match in re.finditer('GG', data):
-                    pos = match.start()
-                    string = data[pos-11:pos+2]
-                    if string:
-                        NGGs.append(self.nggTuple(name, pos, strand, string))
-        return NGGs
+                for pam in ('GG', 'AG'):
+                    for match in re.finditer(pam, data):
+                        pos = match.start()
+                        pam = data[pos-1:pos+2]
+                        string = data[pos-SEED_LENGTH-1:pos-1]
+                        self.NGGs.append(NGG(name, pos, strand, string, pam))
 
     def genomeCompare(self, g1, g2, nmismatch):
         if nmismatch == 0:
             return g1 == g2
-        oo = len(filter(lambda x: g1[x] == g2[x], range(len(g1))))
-        return nmismatch == oo
+        oo = len(filter(lambda x: g1[x] != g2[x], range(len(g1))))
+        return nmismatch >= oo
 
-    def gRNA_design(self, crFasta, start, end, nMismatch, unique=False):
+    def _gRNA_Table_Worker(self, readDataQueue, storeDataQueue, nMismatch):
         '''
 
+        :param readDataQueue:
+        :param storeDataQueue:
+        :return:
+        '''
+        while not readDataQueue.empty():
+            userNGG = readDataQueue.get()
+            genomeNGG = self.NGGs[:]
+            tableDict = {}
+            for it in range(8,21,2):
+                auxNMismatch = nMismatch if it > 8 else 0
+                cont = 0
+                remainingGenomeNGG = []
+                for auxGenomeNGG in genomeNGG:
+                    #todo: ignore comparison with itself, start + ngg pos
+                    if self.genomeCompare(userNGG.seed[it*(-1):], auxGenomeNGG.seed[it*(-1):], auxNMismatch):
+                        cont += 1
+                        remainingGenomeNGG.append(auxGenomeNGG)
+                genomeNGG = list(set(remainingGenomeNGG))
+                tableDict[it] = genomeNGG
+            storeDataQueue.put((userNGG, tableDict))
+
+    def gRNA_Table(self, nMismatch):
+        '''
+        Match user ngg with genome nggs in parallel
             :param crFasta: string
             :param start: int
             :param end: int
             :return: Tuple
         '''
-        findNGGs = []
-        for strand, data in {1:crFasta.sequence[start:end+1], -1:self.reverseComplement(crFasta.sequence[start:end+1])}.iteritems():
-            for match in re.finditer('GG', data):
-                pos = match.start()
-                seed = data[pos-11:pos+2]
-                if seed:
-                    findNGGs.append(self.nggTuple(crFasta.name, pos, strand, seed))
+        #preparedata to read
+        readData = multiprocessing.Queue(len(self.userNGGs)+1)
+        for n in self.userNGGs:
+            readData.put(n)
 
-        assert len(findNGGs) != 0, 'No nGG found in your input'
+        #queue to store data
+        storeData = multiprocessing.Queue(len(self.userNGGs))
 
-        #compare findNGGs with genome
-        allnggs = []
-        for ngg in findNGGs:
-            samenggs = []
-            for genomeNGG in self.NGGs:
-                if self.genomeCompare(ngg.seed, genomeNGG.seed, nMismatch):
-                    samenggs.append((ngg, genomeNGG))
-            if len(samenggs) == 1:
-                allnggs.extend(samenggs)
-                if unique:
-                    break
+        #prepare parallel workers
+        processList = []
+        for w in range(CPU_RAM().getNumProccess()):
+            p = multiprocessing.Process(target=self._gRNA_Table_Worker, args=(readData, storeData, nMismatch,))
+            p.start()
+            processList.append(p)
 
-        gRNAs = []
-        for elem in allnggs:
-            ind = elem[0].pos
+        #collect data
+        tablePerUserNGG = []
+        for x in range(len(self.userNGGs)):
+            if self.verbose:
+                print 'Generating NGG table:', x*100/len(self.userNGGs), '%'
+            key, value = storeData.get()
+            self.tableNGGs[key] = value
 
-            if elem[0].strand == 1:
-                startInd = start+1+ind
-                gRNA = crFasta.sequence[startInd-22:startInd-2]
-                pam = crFasta.sequence[startInd-2:startInd+1]
-            else:   #strand -1
-                startInd = end-1-ind
-                pam = self.reverseComplement(crFasta.sequence[startInd:startInd+3])
-                gRNA = self.reverseComplement(crFasta.sequence[startInd+3:startInd+23])
-            gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
-            gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
-            gRNAs.append((gRNA, gRNAfw, gRNArv, ind, elem[0].strand, pam))
-
-        return gRNAs
-
-
-    def unique_gRNA_design(self, crFasta, start, end, nMismatch):
-        #change return index to return the nth elemment
-        return self.gRNA_design(crFasta, start, end, nMismatch, unique=True)[0]
+        #flush and close process
+        readData.close()
+        storeData.close()
+        [p.terminate() for p in processList]
 
     def HR_DNA(self, crFasta, start, end):
         '''
@@ -215,6 +369,7 @@ class PrimerDesign:
                 return self.CheckingPrimersWidth_(crFasta, start, end, i)
             except:
                 pass
+        return ''
 
     def CheckingPrimersWidth_(self, crFasta, start, end, width):
 
@@ -278,34 +433,33 @@ class PrimerDesign:
     def reverseComplement(self, sequence):
         return ''.join([x for x in reversed(self.sequenceComplement_(sequence))])
 
-    def run(self, chromosome, start, end, nMismatch, allGRNA):
+    def run(self, chromosome, start, end, nMismatch, name):
         '''
         Runs Primer design for CRISPR.
             :param input: string
             :return: tuple(1,2,3)
         '''
         self.checkCoords_(chromosome, start, end)
-        return self.run_(chromosome, int(start), int(end), nMismatch, allGRNA)
+        return self.run_(chromosome, int(start), int(end), nMismatch, name)
 
-    def runCL(self):
+    def runCL(self, localArgs):
         '''
         Run from Command line
             :param localArgs: string
         '''
-        chromosome, start, end, strand = self.parseArgs()
-        ansTuple = self.run(chromosome, start, end, self.argsList_.mismatch,
-                self.argsList_.allGRNA)
+        chromosome, start, end, strand = self.parseArgs(localArgs)
 
-        if self.argsList_.allGRNA:
-            self.allGRNA_report(ansTuple)
-        else:
-            self.gRNA_report(ansTuple[0], start)
-            self.HR_DNA_report(ansTuple[1])
-            self.CheckingPrimers_report(ansTuple[2])
+        #get primer and grna table
+        tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(chromosome, start, end, self.argsList_.mismatch, self.argsList_.name)
 
-    def allGRNA_report(self, data):
-        for d in data:
-            print 'GRNA:', d[0], 'PAM:', d[5], 'Strand:', d[4], 'Start:', d[3]
+        for ind, elem in enumerate(tablePos_grna):
+            #prints the position of the table and occurrences tuple
+            print ind+1, '-', elem[0], tablePos_grna[ind][2:]
+            #prints grna report
+            self.gRNA_report(elem[1], start)
+
+        self.HR_DNA_report(hr_dna)
+        self.CheckingPrimers_report(primercheck)
 
     def gRNA_report(self, gRNA, start):
         print 'gRNA: ', gRNA[0], 'PAM:', gRNA[3]+int(start), gRNA[5], gRNA[4]
@@ -325,7 +479,7 @@ class PrimerDesign:
         print 'Negative result product size: ', pm['negative_result'], '\n'
 
     def runWeb(self, name=None, cr=None, 
-            start=None, end=None, strand=None, allGRNA=False):
+            start=None, end=None, strand=None, nMismatch=0):
         '''
         Function ready to be called from other sources
             :param name:
@@ -341,15 +495,13 @@ class PrimerDesign:
                                              must be given.')
             if end==None: raise ValueError('coordinate end index (end)\
                                            must be given.')
-            ansTuple = self.run(cr, start, end, 0, allGRNA)
-            if not allGRNA: ansTuple.append([cr, start, end])
-
+            tablePos_grna, hr_dna, primerchec, gRNAs_match = self.run(cr, start, end, nMismatch, name)
         else:
             cord=self.annotationParser_.getCoordsFromName(name)
-            ansTuple = self.run(cord[0], cord[1], cord[2], 0, allGRNA)
-            if not allGRNA:  ansTuple.append(cord[0:2])
-        return ansTuple
+            tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cord[0], cord[1], cord[2], nMismatch, name)
 
+
+        return tablePos_grna, hr_dna, primercheck
 
     def readsequence(self, sequenceFile):
         '''
@@ -367,6 +519,10 @@ class PrimerDesign:
 
 
 if __name__ == "__main__":
-    pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS)
-    pd.runCL()
 
+    starttime = time.time()
+
+    pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS, verbose=True)
+    pd.runCL(sys.argv[1:])
+
+    print 'run time', time.time()-starttime
