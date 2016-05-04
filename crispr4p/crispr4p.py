@@ -2,18 +2,22 @@
 
 import argparse
 import collections
-import re, os, sys, time, cPickle
+import re
+import os
+import sys
+import time
+import cPickle
 import multiprocessing
 from collections import namedtuple
 
 from primer3 import bindings as primer3
 
 datapath = os.path.join(os.path.dirname(__file__), "../data/")
-PRECOMPUTED = datapath + 'precomputed'
+
 FASTA = datapath + 'Schizosaccharomyces_pombe.ASM294v2.26.dna.toplevel.fa'
 COORDINATES = datapath + 'COORDINATES.txt'
 SYNONIMS = datapath + 'SYNONIMS.txt'
-
+PRECOMPUTED = 'precomputed_stand_alone'
 ############### CONFIGURATION VALUES ###################
 SEED_LENGTH = 20
 UNIQUE_INDEX_LENGTH = (-12,-3)   # range of values selected for uniqueness
@@ -53,16 +57,9 @@ class TableSorting:
         return table
 
 class CPU_RAM:
-    #>>> multiprocessing.cpu_count()
-        #import os
-        #mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')  # e.g. 4015976448
-        #mem_gib = mem_bytes/(1024.**3)
-
-        #meminfo = dict((i.split()[0].rstrip(':'),int(i.split()[1])) for i in open('/proc/meminfo').readlines())
-        #mem_total_kib = meminfo['MemTotal']  # e.g. 3921852
     def getNumProccess(self):
         #return the number of process to run
-        #return multiprocessing.cpu_count()*3/4
+        return multiprocessing.cpu_count()*3/4
         return multiprocessing.cpu_count()
 
 class chromosomeFasta():
@@ -117,7 +114,7 @@ class PrimerDesign:
     Primer design for CRISPR.
     '''
 
-    def __init__(self, sequenceFile, coordinates, synomins, verbose=False):
+    def __init__(self, sequenceFile, coordinates, synomins, verbose=False, precomputed_folder=PRECOMPUTED):
         self.argumentParser()
         self.sequenceFile_ = sequenceFile
         self.chromosomesData = self.readsequence(self.sequenceFile_)
@@ -127,6 +124,7 @@ class PrimerDesign:
         self.NGGs = []
         self.tableNGGs = {}
         self.verbose = verbose
+        self.precomputed_folder = precomputed_folder
 
     def argumentParser(self):
         self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
@@ -196,21 +194,21 @@ class PrimerDesign:
             startInd = end-1-ind
             pam = self.reverseComplement(crFasta.sequence[startInd:startInd+3])
             gRNA = self.reverseComplement(crFasta.sequence[startInd+3:startInd+23])
-        gRNAfw = gRNA[-10:] + 'gtttagagctagaaatagcaagttaaaataa'
+        gRNAfw = gRNA[-10:] + 'gttttagagctagaaatagcaagttaaaataa'
         gRNArv = self.reverseComplement(gRNA[:10]) + 'ttcttcggtacaggttatgttttttggcaaca'
 
         return gRNA, gRNAfw, gRNArv, ind, ngg.strand, pam
 
     def _genPrecomputedName(self, name, nMismatch, cr, start, end):
-        if not os.path.isdir(PRECOMPUTED):
-            os.makedirs(PRECOMPUTED)
+        if not os.path.isdir(self.precomputed_folder):
+            os.makedirs(self.precomputed_folder)
         if name:
             #use sistematic name (SPAC)
             sistematic_name = [x for x in self.annotationParser_.synonims_ if name in x][0][0]
             basename = '%s_n%s.pickle' % (sistematic_name, nMismatch)
         else:
             basename = '%s_%s_%s_n%s.pickle' % (cr, start, end, nMismatch)
-        return os.path.join(PRECOMPUTED, basename)
+        return os.path.join(self.precomputed_folder, basename)
 
     def _isPrecomputed(self, precomputedName):
         if os.path.isfile(precomputedName):
@@ -234,6 +232,8 @@ class PrimerDesign:
 
             #get primers in parallel
             self.gRNA_Table(nMismatch)
+
+            print self.tableNGGs
 
             #store this gen table on this mismatch
             with open(precomputedName, 'w') as fh:
@@ -340,6 +340,7 @@ class PrimerDesign:
         readData.close()
         storeData.close()
         [p.terminate() for p in processList]
+        del processList
 
     def HR_DNA(self, crFasta, start, end):
         '''
@@ -501,7 +502,7 @@ class PrimerDesign:
             tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cord[0], cord[1], cord[2], nMismatch, name)
 
 
-        return tablePos_grna, hr_dna, primercheck
+        return tablePos_grna, hr_dna, primercheck, name, cord[0], cord[1], cord[2]
 
     def readsequence(self, sequenceFile):
         '''

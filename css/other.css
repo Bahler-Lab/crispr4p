@@ -1,0 +1,293 @@
+
+body {
+	margin: 0;
+	padding: 0;
+	background: #FFFFFF;
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 13px;
+	color: #666666;
+}
+h1{ 
+	font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+	color: white;
+          /* filter:shadow(Color=white)   */
+}
+
+h2, h3 {
+	font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+	color: #000000;
+}
+
+a {
+	border-bottom: 1px dotted #CCCCCC;
+	text-decoration: none;
+	color: #1777B1;
+}
+
+a:hover {
+	border-bottom: none;
+	color: #FF7400;
+}
+
+img.left {
+	float: left;
+	margin: 6px 3px 0 -660px;
+}
+
+img.right {
+	float: right;
+	margin: -676px 170px 400px 0;
+}
+
+.bg1 { background: url(images/img04.gif) no-repeat left bottom; }
+.bg2 { background: url(images/img05.gif) no-repeat left bottom; }
+.bg3 { background: url(images/img06.gif) no-repeat left bottom; }
+.bg4 { background: url(images/img08.gif) no-repeat left bottom; }
+.bg5 { background: url(images/img09.gif) no-repeat left bottom; }
+.bg6 { background: url(images/img10.gif) no-repeat right bottom; }
+//.bg7 { background: url(images/img11.gif) no-repeat right bottom; }
+
+.feature .image {
+	padding: 0 0 0 40px;
+}
+
+.feature .content {
+	padding: 0 0 0 40px;
+}
+
+.box {
+	float: left;
+	width: 450px;
+}
+
+.box .title {
+	height: 40px;
+	padding: 20px 0 0 40px;
+	text-transform: lowercase;
+	font-size: 167%;
+}
+.O {
+color:black;
+font-size:149%;
+}
+.style1 {
+	font-family: 'Berlin Sans FB';
+	font-size: 16pt;
+	color: #4F6228;
+}
+
+.list {
+	margin-left: 0;
+	padding-left: 0;
+	list-style: none;
+}
+
+.list li {
+	padding-left: 10px;
+	background: url(images/img07.gif) no-repeat left center;
+}
+
+/* Header */
+
+#header {
+	height: 140px;
+	margin: 0 auto;
+	background-color:#C3D69B;
+}
+
+#header h1, #header p {
+	margin: 0;
+	margin: 0;
+	font-weight: normal;
+	color: #000000;
+}
+
+#header h1 {
+	float: left;
+	padding: 58px 0 0 12px;
+	text-transform: lowercase;
+	line-height: 72px;
+	font-size: 72px;
+}
+
+#header p {
+	float: right;
+	padding: 102px 0 0 0;
+	text-transform: uppercase;
+	font: bold 11px "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+#header p a {
+	font-size: 167%;
+}
+
+#header a {
+	border: none;
+	color: #000000;
+}
+
+/* Page */
+
+#page {
+	margin: 0 auto;
+}
+
+/* Content */
+
+#content {
+	float:left;
+      width:75%;
+}
+
+#content p, #content ul, #content ol {
+}
+
+#menu {
+	padding: 10px 0;
+	/*margin-left:-10px;*/
+}
+
+#menu ul {
+	margin: 0;
+	
+	list-style: none;
+}
+
+#menu li {
+	display: inline;
+	font-size:14px;
+	
+}
+
+#menu a {
+	display: block;
+	padding: 10px 20px;
+	border-top: 1px solid #EEEEEE;
+	text-decoration: none;
+	font-weight: bold;
+	color: #666666;
+}
+
+#menu a:hover {
+	background: #DCEBFC;
+	color: #000000;
+}
+
+#menu .active a {
+	background: #D1F0A6;
+	color: #000000;
+}
+
+#menu .first a {
+	border: none;
+}
+
+
+/* Sidebar */
+
+#sidebar {
+	
+	float:left;
+	width: 15%;
+	padding: 0 20px 0 0;
+}
+
+#sidebar ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+#sidebar li {
+}
+
+#sidebar li ul {
+}
+
+#sidebar li li {
+	padding: 5px 10px;
+	background: url(images/img07.gif) no-repeat 0 10px;
+	border-top: 1px dotted #DCDCDC;
+}
+
+#sidebar li li.first {
+	border-top-color: #FFFFFF;
+}
+
+#sidebar h2 {
+	height: 40px;
+	padding: 20px 0 0 40px;
+	text-transform: lowercase;
+	font-size: 167%;
+}
+
+#sidebar a {
+	border: none;
+}
+
+#sidebar a:hover {
+	border-bottom: 1px dotted #666666;
+}
+
+/* search_summary */
+#search_summary {
+	padding: 20px;
+}
+
+/* leftTable */
+#leftTable {
+  width: 35%;
+	height: 600px;
+	float: left;
+  overflow-y: scroll;
+	margin-right: 20px;
+
+}
+
+/* rightTable */
+#rightTable {
+  width: 35%;
+	float: left;
+	padding: 20px;
+}
+
+/* Footer */
+
+#footer {
+	clear: both;
+	height: 150px;
+	padding: 20px 0 0 0;
+	background: #000000;
+}
+
+#footer p {
+	background: #000000;
+	margin: 0;
+	text-align: center;
+	font-size: 85%;
+}
+
+#footer a {
+	border: none;
+	color: #CCCCCC;
+}
+
+#footer a:hover {
+	color: #FFFFFF;
+}
+
+#legal {
+}
+
+#legal strong {
+	display: block;
+	padding: 20px 0 0 0;
+	background: url(images/img12.gif) no-repeat center top;
+	text-transform: lowercase;
+	letter-spacing: 3px;
+	font-size: 182%;
+	font-weight: normal;
+}
+
+#links {
+}

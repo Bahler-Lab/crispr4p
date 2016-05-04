@@ -1,4 +1,4 @@
-CGI_DIR=/var/www/bgi-bin/cris4p
+CGI_DIR=/var/www/bgi-bin/crispr4p
 
 
 all:

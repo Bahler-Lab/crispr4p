@@ -1,9 +1,12 @@
+Content-type: text/html
+
+
 <head>
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
 <title>Bahler Lab</title>
 <meta name="keywords" content="" />
 <meta name="description" content="" />
-<link href="/css/other.css" rel="stylesheet" type="text/css" />
+<link href="./css/other.css" rel="stylesheet" type="text/css" />
 </head>
 <body>
 <div id="header">
@@ -13,12 +16,9 @@
         <div style="text-align:center; margin-bottom:0; margin-top:-26px; margin-left:120px;margin-right:-20px;"><span style="font-family:Arial, Helvetica, sans-serif; font-size:55pt; color:#D7E4BD; "><strong><em></em></strong></span></div>
         <div style="text-align:right; margin-bottom:0px; margin-top:-127px; margin-left:150px;"><span style="font-family:'Arial Black', Helvetica, sans-serif; font-size:36pt; color:white; ">
                 <img src="/images/uclogo.gif";/></span></div>
-
-        <div></div>
     </div>
-
-
 </div>
+
 <div id="sidebar">
     <div id="menu">
         <ul>
@@ -32,15 +32,23 @@
             <li ><a href="http://bahlerlab.info/contact.html" title="">Contact</a></li>
         </ul>
     </div>
-
-
 </div>
 
 <div id="content">
+  <div class="i_form">
+      <H3>Please, enter gene information.</H3>
+      <FORM METHOD = post ACTION = "webapp.py">
+      You can either specify by gene name<br>
+      Gene name: <INPUT type = text name = "name"><br><br>
+      or specify the coordinates:<br>
+      Chromosome: <input type = "text" name="chromosome" >
+      Coordinates: from <INPUT type="number" name="coor_lower" min="0"> to <INPUT type = number name = "coor_upper" min="0"><br>
+      e.g. chromosome = I; Coordinates from 112000 to 115000<br><br>
+      <input type="submit" name="action" value="Submit"><br><br>
+      </FORM>
+  </div>
 
-    <div class="feature bg7">
-    </div>
+%s
 
-    <div class="content" >
-        <table class="violet2" width="100%"><tr><td>
-
+</div>
+</body></html>
