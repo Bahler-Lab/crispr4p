@@ -1,0 +1,86 @@
+      <div id="search_summary">
+      <h4>You are checking:</h4>
+      <b>Name</b>=%(name)s<br>
+      <b>chromosome</b>=%(chromosome)s<br>
+      <b>Coordinates</b>=%(start)s to %(end)s<br>
+    </div>
+
+  <div id="leftTable">
+    <table id="posTable">
+      <tbody>
+      <tr>
+          <th></th><th id="grna_column">gRNA</th>
+          <th>8</th><th>10</th><th>12</th><th>14</th><th>16</th><th>18</th><th>20</th>
+      </tr>
+    </tbody></table>
+
+                        <script>
+
+                        function update_primer(number)
+                        {
+                            var primer = rows[number][1]
+                            document.getElementById('primer_algo').innerHTML = primer[0];
+                            document.getElementById('primer_forward').innerHTML = primer[1];
+                            document.getElementById('primer_reverse').innerHTML = primer[2];
+                            document.getElementById('primer_pos').innerHTML = primer[3];
+                            document.getElementById('primer_strand').innerHTML = primer[4];
+                        }
+
+                        var rows = %(json_table)s;
+                        function createTable() {
+                            var table = document.getElementById("posTable");
+                            var len = 0;
+                            for (i = 0, len = rows.length; i < len; i++){
+                                var row = table.insertRow(i+1);
+
+                                var radioHtml = '<input type="radio" name="gRNA" value="' + i.toString() + '" onclick="update_primer(this.value);"';
+                                if ( i == 0 ) {
+                                    radioHtml += ' checked="checked"';
+                                };
+                                radioHtml += '/>';
+
+                                row.insertCell(0).innerHTML = radioHtml;
+                                row.insertCell(1).innerHTML = "5'- " + rows[i][0] + " -3'";
+                                row.insertCell(2).innerHTML = rows[i][2];
+                                row.insertCell(3).innerHTML = rows[i][3];
+                                row.insertCell(4).innerHTML = rows[i][4];
+                                row.insertCell(5).innerHTML = rows[i][5];
+                                row.insertCell(6).innerHTML = rows[i][6];
+                                row.insertCell(7).innerHTML = rows[i][7];
+                            }
+                        }
+                        window.onload = function(){
+                            createTable();update_primer(0);}
+                        </script>
+  </div>
+
+  <div id="rightTable">
+    <h5>Primer</h5>
+    <ul>
+      <li><spam class="l_field">gRNA:</span><spam class="r_field" id="primer_algo">eeeeeeeeeeeeeeeeeeeeee</span></li>
+      <li><spam class="l_field">Forward:</span><spam class="r_field" id="primer_forward">rtertertertre</span></li>
+      <li><spam class="l_field">Reverse:</span><spam class="r_field" id="primer_reverse">werwer</span></li>
+      <li><spam class="l_field">Pos:</span><spam class="r_field" id="primer_pos">66666</span></li>
+      <li><spam class="l_field">Strand:</span><spam class="r_field" id="primer_strand">000000000000</span></li>
+    </ul>
+
+
+    <h5>Homologous Recombination Primers</h5>
+    <ul>
+      <li><spam class="l_field">HRfw:</span><spam class="r_field">%(hrfw)s</span></li>
+      <li><spam class="l_field">HRrv:</span><spam class="r_field">%(hrrv)s</span></li>
+      <li><spam class="l_field">Deleted DNA:</span><spam class="r_field">%(deleted_dna)s</span></li>
+    </ul>
+
+    <h5>Checking Primers</h5>
+    <ul>
+      <li><spam class="l_field">Check primer left:</span><spam class="r_field">%(primer_left)s</span></li>
+      <li><spam class="l_field">LEFT_TM:</span><spam class="r_field">%(left_tm)s</span></li>
+      <li><spam class="l_field">Check primer right:</span><spam class="r_field">%(primer_right)s</span></li>
+      <li><spam class="l_field">RIGHT_TM:</span><spam class="r_field">%(right_tm)s</span></li>
+      <li><spam class="l_field">Deleted DNA product size:</span><spam class="r_field">%(deleted_dna_size)s</span></li>
+      <li><spam class="l_field">Negative result produt size:</span><spam class="r_field"></span>%(negative_result_size)s</li>
+    </ul>
+
+
+    </div>
