@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python
 # Import modules for CGI handling
 import cgi, cgitb
 import os, json

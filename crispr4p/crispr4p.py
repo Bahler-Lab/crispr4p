@@ -59,6 +59,7 @@ class TableSorting:
 class CPU_RAM:
     def getNumProccess(self):
         #return the number of process to run
+        return 1
         return multiprocessing.cpu_count()*3/4
         return multiprocessing.cpu_count()
 
