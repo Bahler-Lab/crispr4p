@@ -1,28 +1,32 @@
-      <div id="search_summary">
-      <h4>You are checking:</h4>
+<script>
+var toggle_interface=function(id){
+    var elem=$(id);
+    elem.toggle(500);
+};
+</script>
+
+  <div id="search_summary">
+      <h4>Your target region is:</h4>
       <b>Name</b>=%(name)s<br>
       <b>chromosome</b>=%(chromosome)s<br>
       <b>Coordinates</b>=%(start)s to %(end)s<br>
-    </div>
+  </div>
 
-  <div id="leftTable">
-    <table id="posTable">
-      <tbody>
-      <tr>
-          <th></th><th id="grna_column">gRNA</th>
-          <th>8</th><th>10</th><th>12</th><th>14</th><th>16</th><th>18</th><th>20</th>
-      </tr>
-    </tbody></table>
-
-                        <script>
+  <h3 class="toggle_header"  onclick="toggle_interface(primers_table)">TABLE</h3>
+  <div id="primers_table">
+  <table id="posTable">
+  <tbody><tr><th></th><th id="grna_column">sgRNA</th><th>8</th><th>10</th><th>12</th><th>14</th><th>16</th><th>18</th><th>20</th></tr>
+  </tbody></table>
+  <script>
 
                         function update_primer(number)
                         {
                             var primer = rows[number][1]
-                            document.getElementById('primer_algo').innerHTML = primer[0];
-                            document.getElementById('primer_forward').innerHTML = primer[1];
-                            document.getElementById('primer_reverse').innerHTML = primer[2];
-                            document.getElementById('primer_pos').innerHTML = primer[3];
+                            document.getElementById('primer_algo').innerHTML = "5'-" + primer[0] + "-3'";
+                            document.getElementById('pam').innerHTML = primer[5];
+                            document.getElementById('primer_forward').innerHTML = "5'-" + primer[1] + "-3'";
+                            document.getElementById('primer_reverse').innerHTML = "5'-" + primer[2] + "-3'";
+                            document.getElementById('primer_pos').innerHTML = primer[3][0] + " -" + primer[3][1];
                             document.getElementById('primer_strand').innerHTML = primer[4];
                         }
 
@@ -47,6 +51,7 @@
                                 row.insertCell(5).innerHTML = rows[i][5];
                                 row.insertCell(6).innerHTML = rows[i][6];
                                 row.insertCell(7).innerHTML = rows[i][7];
+                                row.insertCell(8).innerHTML = rows[i][8];
                             }
                         }
                         window.onload = function(){
@@ -54,33 +59,26 @@
                         </script>
   </div>
 
-  <div id="rightTable">
-    <h5>Primer</h5>
-    <ul>
-      <li><spam class="l_field">gRNA:</span><spam class="r_field" id="primer_algo">eeeeeeeeeeeeeeeeeeeeee</span></li>
-      <li><spam class="l_field">Forward:</span><spam class="r_field" id="primer_forward">rtertertertre</span></li>
-      <li><spam class="l_field">Reverse:</span><spam class="r_field" id="primer_reverse">werwer</span></li>
-      <li><spam class="l_field">Pos:</span><spam class="r_field" id="primer_pos">66666</span></li>
-      <li><spam class="l_field">Strand:</span><spam class="r_field" id="primer_strand">000000000000</span></li>
-    </ul>
+  <h3 class="toggle_header" onclick="toggle_interface(primers)">PRIMERS</h3>
+  <div id="primers">
+  <h5>sgRNA clonning primers</h5>
+  <div class="l_field">sgRNA:</div><div class="r_field" id="primer_algo"></div><br>
+  <div class="l_field">PAM:</div><div class="r_field" id="pam"></div><br>
+  <div class="l_field">sgFw:</div><div class="r_field" id="primer_forward"></div><br>
+  <div class="l_field">sgRv:</div><div class="r_field" id="primer_reverse"></div><br>
+  <div class="l_field">PAM coordinates:</div><div class="r_field" id="primer_pos"></div><br>
+  <div class="l_field">Strand:</div><div class="r_field" id="primer_strand"></div><br>
 
+  <h5>Homologous Recombination template primers</h5>
+  <div class="l_field">HRFw:</div><div class="r_field">5'-%(hrfw)s-3'</div><br>
+  <div class="l_field">HRRv:</div><div class="r_field">5'-%(hrrv)s-3'</div><br>
 
-    <h5>Homologous Recombination Primers</h5>
-    <ul>
-      <li><spam class="l_field">HRfw:</span><spam class="r_field">%(hrfw)s</span></li>
-      <li><spam class="l_field">HRrv:</span><spam class="r_field">%(hrrv)s</span></li>
-      <li><spam class="l_field">Deleted DNA:</span><spam class="r_field">%(deleted_dna)s</span></li>
-    </ul>
-
-    <h5>Checking Primers</h5>
-    <ul>
-      <li><spam class="l_field">Check primer left:</span><spam class="r_field">%(primer_left)s</span></li>
-      <li><spam class="l_field">LEFT_TM:</span><spam class="r_field">%(left_tm)s</span></li>
-      <li><spam class="l_field">Check primer right:</span><spam class="r_field">%(primer_right)s</span></li>
-      <li><spam class="l_field">RIGHT_TM:</span><spam class="r_field">%(right_tm)s</span></li>
-      <li><spam class="l_field">Deleted DNA product size:</span><spam class="r_field">%(deleted_dna_size)s</span></li>
-      <li><spam class="l_field">Negative result produt size:</span><spam class="r_field"></span>%(negative_result_size)s</li>
-    </ul>
-
-
-    </div>
+  <h5>Deletion checking primers</h5>
+  <div class="l_field">CkFw:</div><div class="r_field">5'-%(primer_left)s-3'</div><br>
+  <div class="l_field">CkFw Tm:</div><div class="r_field">%(left_tm)s</div><br>
+  <div class="l_field">CkRv:</div><div class="r_field">5'-%(primer_right)s-3'</div><br>
+  <div class="l_field">CkRv Tm:</div><div class="r_field">%(right_tm)s</div><br>
+  <div class="l_field">PCR product size with deletion:</div><div class="r_field">%(deleted_dna_size)s</div><br>
+  <div class="l_field">PCR product size without deletion:</div><div class="r_field">%(negative_result_size)s</div><br>
+  <div class="l_field">Region surrounding deletion junction:</div><div class="r_field">%(deleted_dna)s</div><br>
+  </div>

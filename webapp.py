@@ -45,8 +45,7 @@ class PrimerDesignModel(object):
             print "Error: ", err
 
     def result_html(self):
-
-        pm = self.primercheck[0]
+        pm = self.primercheck[0] if self.primercheck else {}
         result_dict = {'name': self.name,
                        'chromosome': self.cr,
                        'start': self.start,
@@ -54,12 +53,12 @@ class PrimerDesignModel(object):
                        'hrfw': self.hr_dna[0],
                        'hrrv': self.hr_dna[1],
                        'deleted_dna': self.hr_dna[2],
-                       'primer_left': pm['PRIMER_LEFT_0_SEQUENCE'],
-                       'left_tm': int(round(pm['PRIMER_LEFT_0_TM'])),
-                       'primer_right': pm['PRIMER_RIGHT_0_SEQUENCE'],
-                       'right_tm': int(round(pm['PRIMER_RIGHT_0_TM'])),
-                       'deleted_dna_size': str(pm['PRIMER_PAIR_0_PRODUCT_SIZE']) + "(bp)",
-                       'negative_result_size': str(pm['negative_result']) + "(bp)"}
+                       'primer_left': pm.get('PRIMER_LEFT_0_SEQUENCE', '-'),
+                       'left_tm': "%d &deg;C" % int(round(pm.get('PRIMER_LEFT_0_TM', '0'))),
+                       'primer_right': pm.get('PRIMER_RIGHT_0_SEQUENCE', '-'),
+                       'right_tm': "%d &deg;C" %  int(round(pm.get('PRIMER_RIGHT_0_TM', '0'))),
+                       'deleted_dna_size': str(pm.get('PRIMER_PAIR_0_PRODUCT_SIZE', '-')) + " (bp)",
+                       'negative_result_size': str(pm.get('negative_result', '-')) + " (bp)"}
 
         result_dict['json_table'] = json.dumps(self.tablePos_grna)
 

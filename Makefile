@@ -6,6 +6,10 @@ all:
 	@cp -r * $(CGI_DIR)/
 	@echo "crispr4p has been deployed in $(CGI_DIR)"
 
+regression:
+    crispr4p/regression.py
+
+
 clean:
 	rm -r $(CGI_DIR)/*
 
