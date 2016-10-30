@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 # Import modules for CGI handling
-import cgi, cgitb
+import cgi
 import os, json
 import crispr4p.crispr4p as crp
 

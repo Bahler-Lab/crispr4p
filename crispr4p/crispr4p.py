@@ -20,6 +20,21 @@ PRECOMPUTED = 'precomputed_stand_alone'
 SEED_LENGTH = 20
 UNIQUE_INDEX_LENGTH = (-12,-3)   # range of values selected for uniqueness
 
+
+def timeit(method):
+
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+
+        print '%r (%r, %r) %2.2f sec' % \
+              (method.__name__, args, kw, te-ts)
+        return result
+
+    return timed
+
+
 class TableSorting:
     def __init__(self, posList, reversed):
         self.reversed = reversed
@@ -54,11 +69,13 @@ class TableSorting:
         self.bubbleSort(table)
         return table
 
+
 class CPU_RAM:
     def getNumProccess(self):
         #return the number of process to run
         return 1
         return multiprocessing.cpu_count()*3/4
+
 
 class chromosomeFasta():
     '''
@@ -116,7 +133,7 @@ class PrimerDesign:
 
     complements = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C', 'N': 'N'}
 
-    def __init__(self, sequenceFile, coordinates, synomins, verbose=False, precomputed_folder=PRECOMPUTED):
+    def __init__(self, sequenceFile, coordinates, synomins, verbose=False, precomputed_folder=PRECOMPUTED, regression=False):
         self.argumentParser()
         self.sequenceFile_ = sequenceFile
         self.chromosomesData = self.readsequence(self.sequenceFile_)
@@ -124,9 +141,16 @@ class PrimerDesign:
         self.annotationParser_ = AnnotationParser(coordinates, synomins)
         self.userNGGs = []
         self.tableNGGs = {}
-        self.NGGs = []
+        self.NGGs = None
         self.verbose = verbose
         self.precomputed_folder = precomputed_folder
+        self.regression = regression
+        if self.regression:
+            self.getNGGsFromGenome()
+        else:
+            # todo
+            self.NGGs = None
+
 
     def argumentParser(self):
         self.argp_ = argparse.ArgumentParser(description='cripsr4p description')
@@ -223,7 +247,8 @@ class PrimerDesign:
             :param coords: tuple(int, int, int)
             :return: tuple(1,2,3)
         '''
-        self.getNGGsFromGenome()
+        if not self.regression:
+            self.getNGGsFromGenome()
         crFasta = self.chromosomesData.get(chromosome, None)
 
         #find user input nggs
@@ -253,6 +278,7 @@ class PrimerDesign:
         Run at initialitation.
         :return:
         '''
+        self.NGGs = {}
         for name, sequence in self.chromosomesData.iteritems():
             for strand, data in {1:sequence.sequence, -1:self.reverseComplement(sequence.sequence)}.iteritems():
                 for pam in ('GG', 'AG'):
@@ -260,7 +286,12 @@ class PrimerDesign:
                         pos = match.start()
                         pam = data[pos-1:pos+2]
                         string = data[pos-SEED_LENGTH-1:pos-1]
-                        self.NGGs.append(NGG(name, pos, strand, string, pam))
+
+                        # index last 8
+                        index_8 = string[-8:]
+                        if index_8 not in self.NGGs:
+                            self.NGGs[index_8] = []
+                        self.NGGs[index_8].append(NGG(name, pos, strand, string, pam))
 
     @staticmethod
     def genomeCompare(g1, g2, nmismatch):
@@ -281,9 +312,11 @@ class PrimerDesign:
             storeDataQueue.put(self._single_table_worker(userNGG, nMismatch))
 
     def _single_table_worker(self, userNGG, nMismatch):
-        tableDict = {}
-        genomeNGG = self.NGGs
-        for it in range(8, 21, 2):
+        index_8 = userNGG.seed[-8:]
+        genomeNGG = self.NGGs[index_8][:]
+        tableDict = {8: genomeNGG}
+
+        for it in range(10, 21, 2):
             auxNMismatch = nMismatch if it > 8 else 0
             cont = 0
             remainingGenomeNGG = []
@@ -367,12 +400,7 @@ class PrimerDesign:
             :param end: int
             :return: Tuple
         '''
-        for i in range(200, 300, 25):
-            try:
-                return self.CheckingPrimersWidth_(crFasta, start, end, i)
-            except:
-                pass
-        return ''
+        return self.CheckingPrimersWidth_(crFasta, start, end, 300)
 
     def CheckingPrimersWidth_(self, crFasta, start, end, width):
 
@@ -382,7 +410,8 @@ class PrimerDesign:
         primerDict =  {
         'SEQUENCE_ID': 'MH1000',
         'SEQUENCE_TEMPLATE': prev+next,
-        'SEQUENCE_INCLUDED_REGION': [0,2*width]
+        'SEQUENCE_INCLUDED_REGION': [0,2*width],
+        'SEQUENCE_EXCLUDED_REGION': [width-80, 160]
         }
         primerDict2 = {
         'PRIMER_OPT_SIZE': 20,
@@ -404,7 +433,7 @@ class PrimerDesign:
         'PRIMER_MAX_SELF_END': 8,
         'PRIMER_PAIR_MAX_COMPL_ANY': 12,
         'PRIMER_PAIR_MAX_COMPL_END': 8,
-        'PRIMER_PRODUCT_SIZE_RANGE': [[width+25, 2*width]],
+        'PRIMER_PRODUCT_SIZE_RANGE': [[width-75, 2*width]],
         }
 
         ans = primer3.designPrimers(primerDict, primerDict2)
@@ -478,15 +507,15 @@ class PrimerDesign:
             print ind+1, '-', elem[0], tablePos_grna[ind][2:]
 
             #prints grna report
-            self.gRNA_report(elem[1], start)
+            self.gRNA_report(elem[1])
 
         self.HR_DNA_report(hr_dna)
         if primercheck:
             self.CheckingPrimers_report(primercheck)
 
 
-    def gRNA_report(self, gRNA, start):
-        print 'gRNA: ', gRNA[0], 'PAM:', gRNA[3]+int(start), gRNA[5], gRNA[4]
+    def gRNA_report(self, gRNA, ):
+        print 'gRNA: ', gRNA[0], 'PAM: %d - %d' % gRNA[3], gRNA[5], gRNA[4]
         print 'gRNAfw: ', gRNA[1]
         print 'gRNArv: ', gRNA[2], '\n'
 
@@ -523,7 +552,6 @@ class PrimerDesign:
         else:
             cord=self.annotationParser_.getCoordsFromName(name)
             tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cord[0], cord[1], cord[2], nMismatch, name)
-
 
         return tablePos_grna, hr_dna, primercheck, name, cord[0], cord[1], cord[2]
 

@@ -3,7 +3,7 @@
 <title>Bahler Lab</title>
 <meta name="keywords" content="" />
 <meta name="description" content="" />
-<link href="./css/other.css" rel="stylesheet" type="text/css" />
+<link href="./css/crispr4p.css" rel="stylesheet" type="text/css" />
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
 </head>
 <body>
@@ -32,17 +32,29 @@
     </div>
 </div>
 
+<script>
+function show_loader() {
+    document.getElementById("loader").style.display = "block";
+    document.getElementById("search_content").style.visibility = "hidden";
+};
+
+var toggle_interface=function(id){
+    var elem=$(id);
+    elem.toggle(500);
+};
+</script>
+
 <div id="content">
   <div class="i_form">
       <H3>Enter gene information.</H3>
-      <FORM METHOD = post ACTION = "webapp.py">
+      <FORM METHOD = post ACTION = "webapp.py" onsubmit="show_loader()">
       You can either specify by gene name<br>
       Gene name: <INPUT type = text name = "name"><br><br>
       or specify the coordinates:<br>
       Chromosome: <input type = "text" name="chromosome" >
       Coordinates: from <INPUT type="number" name="coor_lower" min="0"> to <INPUT type = number name = "coor_upper" min="0"><br>
       e.g. chromosome = I; Coordinates from 112000 to 115000<br><br>
-      <input type="submit" name="action" value="Submit"><br><br>
+      <input type="submit" name="action" value="Submit"><p></p><div id="loader"></div><br>
       </FORM>
   </div>
 

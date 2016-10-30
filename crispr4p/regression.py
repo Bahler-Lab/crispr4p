@@ -23,7 +23,7 @@ os.system('rm -rf %s' % PRECOMPUTED)
 
 #numer of mismatches
 errors = []
-pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS, verbose=False)
+pd = PrimerDesign(FASTA, COORDINATES, SYNONIMS, verbose=False, regression=True)
 for ind, nmis in enumerate(mismatches_list):
     for inde, elem in enumerate(names_list):
         localArgs = ['--name', elem, '--mismatch', str(nmis)]
