@@ -1,3 +1,6 @@
 # CRISPR4P
-https://zenodo.org/badge/45244871.svg
+
+
+[![DOI](https://zenodo.org/badge/45244871.svg)](https://zenodo.org/badge/latestdoi/45244871)
+
 
