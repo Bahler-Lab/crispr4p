@@ -114,6 +114,8 @@ class AnnotationParser:
 
         return tuple(coordinates[0][1:])
 
+#class NoNameFound(Exception):
+
 
 class NGG(object):
     __slots__ = ('chromosome', 'pos', 'strand', 'seed', 'pam', 'primer')
@@ -548,12 +550,12 @@ class PrimerDesign:
                                              must be given.')
             if end==None: raise ValueError('coordinate end index (end)\
                                            must be given.')
-            tablePos_grna, hr_dna, primerchec, gRNAs_match = self.run(cr, start, end, nMismatch, name)
+            tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cr, start, end, nMismatch, name)
         else:
-            cord=self.annotationParser_.getCoordsFromName(name)
-            tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cord[0], cord[1], cord[2], nMismatch, name)
+            cr, start, end = self.annotationParser_.getCoordsFromName(name)
+            tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cr, start, end, nMismatch, name)
 
-        return tablePos_grna, hr_dna, primercheck, name, cord[0], cord[1], cord[2]
+        return tablePos_grna, hr_dna, primercheck, name, cr, start, end
 
     def readsequence(self, sequenceFile):
         '''
