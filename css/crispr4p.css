@@ -18,6 +18,10 @@ h2, h3 {
 	color: #000000;
 }
 
+footer {
+    float: left;
+}
+
 a {
 	border-bottom: 1px dotted #CCCCCC;
 	text-decoration: none;
