@@ -105,16 +105,24 @@ class AnnotationParser:
         data = [x.split('\t') for x in data]
         return [[y for y in x if y] for x in data]
 
+    def normalize_name(self, name):
+        name = name.upper().strip()
+        if not any(x[0] == name for x in self.coordinates_):
+            name = name.lower()
+        return name
+
     def getCoordsFromName(self, name):
-        found = [x for x in self.synonims_ if name in x]
-        assert len(found) == 1, 'No name found.'
-        found = found[0]
-        coordinates = filter(lambda x: x[0] == found[0], self.coordinates_)
-        assert len(coordinates) == 1, 'More than one coordinates found.'
+        input_name = name
+        name = self.normalize_name(name)
 
-        return tuple(coordinates[0][1:])
+        # find SPAC uniform name
+        try:
+            found = next(x for x in self.synonims_ if name in x)[0]
+        except:
+            raise Exception('"%s" name not found, check the name is correct' % input_name)
 
-#class NoNameFound(Exception):
+        coordinates = next(x for x in self.coordinates_ if x[0] == found)[1:]
+        return coordinates
 
 
 class NGG(object):
@@ -466,7 +474,6 @@ class PrimerDesign:
 
     @staticmethod
     def reverseComplement(sequence):
-        #return ''.join([x for x in reversed(PrimerDesign.sequenceComplement_(sequence))])
         return PrimerDesign.sequenceComplement_(sequence)[::-1]
 
     def run(self, chromosome, start, end, nMismatch, name):
@@ -481,12 +488,23 @@ class PrimerDesign:
         precomputedName = self._genPrecomputedName(name, nMismatch, chromosome, start, end)
         if not self._isPrecomputed(precomputedName):
             tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run_(chromosome, int(start), int(end), nMismatch, name)
-            data = cPickle.dumps((tablePos_grna, hr_dna, primercheck, gRNAs_match), protocol=-1)
-            with open(precomputedName, 'w') as fh:
-                fh.write(data)
+
+            try:
+                data = cPickle.dumps((tablePos_grna, hr_dna, primercheck, gRNAs_match), protocol=-1)
+                with open(precomputedName, 'w') as fh:
+                    fh.write(data)
+            except:
+                # if writing fails, don't show error, will compute it next time
+                if os.path.isfile(precomputedName):
+                    os.remove(precomputedName)
         else:
-            with open(precomputedName) as fh:
-                tablePos_grna, hr_dna, primercheck, gRNAs_match = cPickle.load(fh)
+            try:
+                with open(precomputedName) as fh:
+                    tablePos_grna, hr_dna, primercheck, gRNAs_match = cPickle.load(fh)
+            except:
+                # pickle loading failed delete file, next call will store it right.
+                os.remove(precomputedName)
+                tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run_(chromosome, int(start), int(end), nMismatch, name)
 
         return tablePos_grna, hr_dna, primercheck, gRNAs_match
 
@@ -498,7 +516,8 @@ class PrimerDesign:
         chromosome, start, end, strand = self.parseArgs(localArgs)
 
         #get primer and grna table
-        tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(chromosome, start, end, self.argsList_.mismatch, self.argsList_.name)
+        name = self.annotationParser_.normalize_name(self.argsList_.name)
+        tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(chromosome, start, end, self.argsList_.mismatch, name)
 
         if not self.verbose:
             return
@@ -552,7 +571,8 @@ class PrimerDesign:
                                            must be given.')
             tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cr, start, end, nMismatch, name)
         else:
-            cr, start, end = self.annotationParser_.getCoordsFromName(name)
+            name = self.annotationParser_.normalize_name(name)
+            cr, start, end, _ = self.annotationParser_.getCoordsFromName(name)
             tablePos_grna, hr_dna, primercheck, gRNAs_match = self.run(cr, start, end, nMismatch, name)
 
         return tablePos_grna, hr_dna, primercheck, name, cr, start, end

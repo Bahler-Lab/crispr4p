@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 # Import modules for CGI handling
 import cgi
 import os, json
@@ -16,13 +16,14 @@ class viewForm(object):
 
     def load_bahler_template(self):
         src_path = os.path.dirname(__file__)
+        src_path = "." if src_path == "" else src_path
+
         try:
-            if src_path == "":
-                src_path = "."
-            template_file = open(src_path + '/template/bahler_template.html')
+            with open(src_path + '/template/bahler_template.html') as fh:
+                template_file = fh.read()
+            return template_file
         except IOError as err:
             print err
-        return template_file.read()
 
 
 class PrimerDesignModel(object):
@@ -31,6 +32,7 @@ class PrimerDesignModel(object):
         self.cr = cr
         self.start = start
         self.end = end
+        self.primercheck = None
 
     def run(self):
         datapath = "data/"
@@ -63,8 +65,8 @@ class PrimerDesignModel(object):
         result_dict['json_table'] = json.dumps(self.tablePos_grna)
 
         src_path = os.path.dirname(__file__) if os.path.dirname(__file__) else '.'
-        template_file = open(src_path + '/template/container_table.html').read()
-
+        with open(src_path + '/template/container_table.html') as fh:
+            template_file = fh.read()
         return template_file % (result_dict)
 
 
@@ -101,8 +103,13 @@ class controller(object):
             model_arguments = self.check_form_action()
             if model_arguments != None:
                 self.model = PrimerDesignModel(*model_arguments)
-                self.model.run()
-                return self.model.result_html()
+                try:
+                    self.model.run()
+                    ans = self.model.result_html()
+                except:
+                    ans = '<font color="red"><h2>ERROR: please contact to: <a href="mailto:m.rodriguezlopez@ucl.ac.uk">m.rodriguezlopez@ucl.ac.uk</a></h2></font>'
+                finally:
+                    return ans
         return  ''
 
 
